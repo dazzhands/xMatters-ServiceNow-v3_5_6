@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update sys_domain="global" table="sys_ui_action">
+    <sys_ui_action action="INSERT_OR_UPDATE">
+        <action_name>createxMTask</action_name>
+        <active>true</active>
+        <client>true</client>
+        <comments>Notify a Group or User through xMatters using the xMatters Task records.</comments>
+        <condition>gs.getProperty( gs.getCurrentScopeName() + '.' + 'xmatters.task.enable' )</condition>
+        <form_action>true</form_action>
+        <form_button>true</form_button>
+        <form_context_menu>false</form_context_menu>
+        <form_link>false</form_link>
+        <hint/>
+        <list_action>false</list_action>
+        <list_banner_button>false</list_banner_button>
+        <list_button>false</list_button>
+        <list_choice>false</list_choice>
+        <list_context_menu>false</list_context_menu>
+        <list_link>false</list_link>
+        <list_save_with_form_button>false</list_save_with_form_button>
+        <name>Engage with xMatters</name>
+        <onclick>createxMTask()</onclick>
+        <order>100</order>
+        <script><![CDATA[function createxMTask() {
+	// No access to "gs" so we can't write to the System log,
+	// but we can write to the browser log with this console:
+	//console.log( 'Hello? prefix: ' + g_scratchpad.appPrefix );
+	
+	var appPrefix = g_scratchpad.appPrefix + '_';
+    //  Create a dialog form, set the submit action to 'null'
+    var dialog = new GlideDialogForm( 'Engage with xMatters', appPrefix + 'engage_with_xmatters', null );
+    
+    //  Set the sys_id to -1 to create a new record
+    dialog.setSysID('-1');
+    //  Specify a form view                         
+    dialog.addParm('sysparm_view', 'default');  
+    //  Leave the related lists on the form visible   
+    dialog.addParm('sysparm_form_only', 'false');  
+    
+    dialog.setLoadCallback( function( iframeDoc ) {
+      //  To get the iframe: document.defaultView in non-IE, document.parentWindow in IE
+      var dialogFrame = 'defaultView' in iframeDoc ? iframeDoc.defaultView : iframeDoc.parentWindow;
+    
+      //  Take some items from the parent Incident
+      dialogFrame.g_form.setValue( 'parent_incident', '' + g_form.getUniqueValue() );   
+		//dialogFrame.g_form.setValue( 'message', 'stuff' );   
+		// To pass other values from the Incident to the Task, enter them as below.
+		// The first parameter is the column name and the other is the value
+     // dialogFrame.g_form.setValue( 'cmdb_ci',g_form.getValue('cmdb_ci') );    
+      dialogFrame = null;
+    });
+        
+    //  Open the dialog
+    dialog.render();               
+
+}
+
+/*
+if( typeof window == 'undefined' )
+	serverReopen();
+
+function serverReopen() {
+  gs.addInfoMessage( 'hi' );
+  appPrefix = gs.getCurrentScopeName();
+}
+*/]]></script>
+        <show_insert>false</show_insert>
+        <show_multiple_update>false</show_multiple_update>
+        <show_query>false</show_query>
+        <show_update>true</show_update>
+        <sys_class_name>sys_ui_action</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-02-09 20:50:19</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>78ce890f7b02f1008e0b707d784d4df7</sys_id>
+        <sys_mod_count>34</sys_mod_count>
+        <sys_name>Engage with xMatters</sys_name>
+        <sys_overrides/>
+        <sys_package display_value="Global" source="global">global</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_ui_action_78ce890f7b02f1008e0b707d784d4df7</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-03-20 03:51:39</sys_updated_on>
+        <table>incident</table>
+        <ui11_compatible>false</ui11_compatible>
+        <ui16_compatible>false</ui16_compatible>
+    </sys_ui_action>
+</record_update>

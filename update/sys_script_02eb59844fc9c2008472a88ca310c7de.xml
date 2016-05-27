@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update sys_domain="global" table="sys_script">
+    <sys_script action="INSERT_OR_UPDATE">
+        <abort_action>false</abort_action>
+        <access>package_private</access>
+        <action_delete>true</action_delete>
+        <action_insert>true</action_insert>
+        <action_query>false</action_query>
+        <action_update>true</action_update>
+        <active>true</active>
+        <add_message>false</add_message>
+        <advanced>true</advanced>
+        <change_fields>false</change_fields>
+        <client_callable>false</client_callable>
+        <collection>sys_user</collection>
+        <condition/>
+        <description/>
+        <execute_function>true</execute_function>
+        <filter_condition/>
+        <is_rest>false</is_rest>
+        <message/>
+        <name>xMatters User Sync</name>
+        <order>50</order>
+        <priority>100</priority>
+        <rest_method/>
+        <rest_method_text/>
+        <rest_service/>
+        <rest_service_text/>
+        <rest_variables/>
+        <role_conditions/>
+        <script><![CDATA[function onAfter(current, previous) {
+  //This function will be automatically called when this rule is processed.
+  gs.include("xMattersLogger");
+  gs.include("xMattersUserSync");
+  
+  var appPrefix = gs.getCurrentScopeName();
+  
+  // Initialize the SOAP Helper and Logger objects
+  var userSync = new xMattersUserSync();
+  var xMlog = new xMattersLogger(gs.getProperty(appPrefix + '.' + "xmatters.logging.level"));
+  var seedOnly = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.seed.only").toLowerCase() == "true";
+  var syncd = null;
+  
+  if( current.user_name == gs.getProperty(appPrefix + '.' + "xmatters.api.user") ) {
+    xMlog.info( 'Not syncing "' + current.user_name + '" as this is the integration user' );
+  } else if ( gs.getProperty(appPrefix + '.' + "xmatters.sync.dynamically") == "true") {
+    xMlog.debug("xMatters User Synch Business Rule" + current.sys_id + '. Trigger rule = ' + current.operation());
+    
+    // Update the user in xMatters
+    if (current.operation() == "update")  {
+      syncd = userSync.syncUser(current, previous.user_name, "UpdateUser");
+      if (!seedOnly && syncd == "true") {
+        syncDevices(current, previous, userSync);
+      } else {
+        xMlog.debug("Users devices will not be synchronized as the user was not synchronized");
+      }
+    } else if (current.operation() == "insert") {
+      // Inject the user into xMatters
+      syncd = userSync.syncUser(current, current.user_name, "AddUser");
+      if (syncd == "true") {
+        syncDevices(current, previous, userSync);
+      } else {
+        xMlog.debug("Users devices will not be synchronized as the user was not synchronized");
+      }
+    } else if (current.operation() == "delete") {
+      // Delete the user from xMatters
+      userSync.syncUser(current, current.user_name, "DeleteUser");
+    }
+  } else {
+    xMlog.debug("User will not be synchronized as the 'Dynamic Sync' property is turned off");
+  }
+    
+  /**
+  * HELPER METHODS
+  */
+  
+  /**
+  * Figure out if the devices need to be sync'd
+  * @param current glide record
+  * @param previous glide record
+  **/
+  function syncDevices(current, previous, userSync) {
+    // we have 4 types of devices to sync
+    if( current.email.changes() || current.phone.changes() || current.mobile_phone.changes()) {
+      xMlog.debug("Users devices will be synchronized");		
+      userSync.syncDevices(current);
+    }
+  }    
+}]]></script>
+        <sys_class_name>sys_script</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-06-29 17:14:13</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>02eb59844fc9c2008472a88ca310c7de</sys_id>
+        <sys_mod_count>4</sys_mod_count>
+        <sys_name>xMatters User Sync</sys_name>
+        <sys_overrides/>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_02eb59844fc9c2008472a88ca310c7de</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-09-24 18:13:25</sys_updated_on>
+        <template/>
+        <when>after</when>
+    </sys_script>
+    <sys_translated_text action="delete_multiple" query="documentkey=02eb59844fc9c2008472a88ca310c7de"/>
+</record_update>

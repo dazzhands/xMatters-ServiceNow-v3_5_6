@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_ui_page">
+    <sys_ui_page action="INSERT_OR_UPDATE">
+        <category>general</category>
+        <client_script><![CDATA[// This holds the entire list we pulled from the AJAX query
+var masterListU, masterListG;
+
+//Called when the 'OK' button gets clicked
+function continueOK(){
+	//Get the selected values from the right slushbucket
+	var values = slush.getValues(slush.getRightSelect());
+	
+	GlideDialogWindow.get().destroy(); //Close the dialog window
+	g_form.setValue("recipients", values.join() );
+	//return true;
+}
+
+
+//Called when the 'Cancel' button gets clicked
+function continueCancel(){
+	//Close the dialog window
+	GlideDialogWindow.get().destroy();
+	return false;
+}
+
+
+//Called when the form loads
+addLoadEvent(function(){
+	
+	//Load the groups when the form loads
+	slush.clear();
+	var ajax = new GlideAjax('xMRecipientSelectAjax');
+	ajax.addParam('sysparm_name', 'populateAvailable');
+	ajax.getXML(loadResponse);
+	return false;
+});
+
+function goSearch() {
+	
+	// This might come in handy:
+	var leftBox = slush.getLeftSelect();
+	
+	var values = slush.getValues( slush.getLeftSelect() );
+	var selected = slush.getValues( slush.getRightSelect() );
+	var search = gel('search_field').value;
+	
+	// There isn't a function to remove entries from
+	// the left side. Fortunately, the leftBox object
+	// here is just an HTML select element, so we can
+	// do stuff directly.
+	var str = '';
+	while( leftBox.options.length > 0 ) {
+		leftBox.options.remove( 0 );
+	}
+	
+	
+	// If the search is cleared, reset the list to initial
+	// and do nothing else.
+	if( search == '' ) {
+		for( v=0; v < masterListG.length; v++ ) {
+			slush.addLeftChoice( masterListG[v][0], masterListG[v][1] );
+		}
+		for( v=0; v < masterListU.length; v++ ) {
+			slush.addLeftChoice( masterListU[v][0], masterListU[v][1] );
+		}
+		
+		return;
+	}
+	
+	
+	// Check for matches to our search
+	var str = '';
+	for( v=0; v < masterListG.length; v++ ) {
+		
+		// Add items found, but check if it is already in the selected list.
+		// To make this case insensitive, use this:
+		// masterList[v][0].toLowerCase( search )
+		if( masterListG[v][0].toLowerCase().indexOf( search.toLowerCase() ) > -1 &&
+			selected.indexOf( masterListG[v][0] ) == -1 ) {
+			slush.addLeftChoice( masterListG[v][0], masterListG[v][1] );
+		}
+	}
+	for( v=0; v < masterListU.length; v++ ) {
+		
+		// Add items found, but check if it is already in the selected list.
+		// To make this case insensitive, use this:
+		// masterList[v][0].toLowerCase( search )
+		if( masterListU[v][0].toLowerCase().indexOf( search.toLowerCase() ) > -1 &&
+			selected.indexOf( masterListU[v][0] ) == -1 ) {
+			slush.addLeftChoice( masterListU[v][0], masterListU[v][1] );
+		}
+	}
+}
+
+
+//Called when we get a response from the 'addLoadEvent' function
+function loadResponse (response ){
+	
+	//Process the return XML document and add groups to the left select
+	var xml = response.responseXML;
+	var e = xml.documentElement;
+	
+	var items = xml.getElementsByTagName( "item" );
+	
+	
+	masterListG = [];
+	masterListU = [];
+	//Loop through item elements and add each item to left slushbucket
+	for (var i = 0; i < items.length; i++) {
+		var item = items[i];
+		if( item.getAttribute( 'itemType' ) == 'group' )
+			masterListG.push( [ item.getAttribute('value'), item.getAttribute('text') ] );
+		else if( item.getAttribute( 'itemType' ) == 'user' )
+			masterListU.push( [ item.getAttribute('value'), item.getAttribute('text') ] );
+		
+		slush.addLeftChoice( item.getAttribute('value'), item.getAttribute('text'));
+	}
+	
+	
+}
+
+
+function getMethods(obj) {
+	var result = [];
+	for (var id in obj) {
+		try {
+			if (typeof(obj[id]) == "function") {
+				result.push(id + ": " + obj[id].toString());
+			}
+		} catch (err) {
+			result.push(id + ": inaccessible");
+		}
+	}
+	return result;
+}]]></client_script>
+        <description>Add recipients to the Engage with xMatters form. </description>
+        <direct>false</direct>
+        <endpoint>x_xma_xmatters_xm_add_recipients.do</endpoint>
+        <html><![CDATA[<?xml version="1.0" encoding="utf-8" ?>
+<j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
+<g:ui_form>
+   <TABLE BORDER="0" width="100%">
+      <TR>
+         <TD>
+   <!-- The search wipes out the selected values... so you'll just have to scroll -->
+<label for="search_field" style="display:inline">Filter: </label>
+<input id="search_field" type="text" name="search_field" value='' onkeyup="goSearch()" />
+
+
+         </TD>
+      </TR>
+      <TR>
+         <TD>
+            <!-- Include the 'ui_slushbucket' UI macro -->
+            <g:ui_slushbucket/>
+         </TD>
+      </TR>
+      <TR>
+         <TD align="right">
+            <!-- Include the 'dialog_buttons_ok_cancel' UI macro -->
+            <g:dialog_buttons_ok_cancel ok="return continueOK()" cancel="return continueCancel()" ok_type="button" cancel_type="button"/>
+         </TD>
+      </TR>
+   </TABLE>
+</g:ui_form>
+</j:jelly>]]></html>
+        <name>xm_add_recipients</name>
+        <processing_script/>
+        <sys_class_name>sys_ui_page</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-02-10 00:10:41</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>c1bc7d077b42f1008e0b707d784d4df5</sys_id>
+        <sys_mod_count>19</sys_mod_count>
+        <sys_name>xm_add_recipients</sys_name>
+        <sys_package display_value="Global" source="global">global</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_ui_page_c1bc7d077b42f1008e0b707d784d4df5</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-09-29 17:22:17</sys_updated_on>
+    </sys_ui_page>
+</record_update>

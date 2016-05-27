@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersBackgroundBatchSync</api_name>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>xMattersBackgroundBatchSync</name>
+        <script><![CDATA[/**
+ * This script will attempt to load all users, devices, groups and teams into xMatters.
+ */
+gs.include("xMattersLogger");
+gs.include("xMattersUserSync");
+gs.include("xMattersGroupSync");
+gs.include("xMattersGroupMemberSync");
+gs.include("xMattersSOAPHelper");
+
+var xMattersBackgroundBatchSync = Class.create();
+
+xMattersBackgroundBatchSync.prototype = {
+	
+	type: 'xMattersBackgroundBatchSync',
+	
+	initialize: function( logLevel ) {
+		// Set to 0 or negative, to use as many processes as possible (1 process per 6-7 users)
+		this.MAX_USER_PROCESSES = 10;
+		
+		// The 'Background max events, jobs, etc limits' Quota
+		// only allows 100 HTTP calls per process. Geneva
+		// seems to have a lower threshold.
+		this.MAX_SOAP_CALLS_PER_PROCESS = 50;
+		
+		// I counted the max SOAP calls for each of these
+		this.SOAP_CALLS_PER_USER  = 6;
+		this.SOAP_CALLS_PER_GROUP = 9;
+		
+		this.appPrefix = gs.getCurrentScopeName();
+		
+		// Initialize the SOAP Helper and Logger
+		// We'll use a different log level than the one in settings
+		this.log = new xMattersLogger( logLevel );
+		
+		this.userSync = new xMattersUserSync();
+		this.groupSync = new xMattersGroupSync();
+		this.memberSync = new xMattersGroupMemberSync();
+		
+		this.soapHelper = new xMattersSOAPHelper();
+	},
+	
+	// user stuff
+	syncUsers : function() {
+		var start = new Date();
+		this.log.debug("Loading users into xMatters started: " + start );
+		
+		// Get the list of "sync'able" users
+		var userList = this.soapHelper.getxMUsers();
+		var numUsers = userList.length;
+		this.log.debug("User list completed: " + this.soapHelper.timer(start.getTime()) + " ms, " + numUsers + " users.");
+		
+		var numUserProcesses, userBucketSize;
+		if (this.MAX_USER_PROCESSES > 0) {
+			userBucketSize = Math.ceil( numUsers / this.MAX_USER_PROCESSES);
+			numUserProcesses = this.MAX_USER_PROCESSES;
+		} else {
+			// Determine the total number of SOAP calls that will be needed
+			var numSOAPCalls = numUsers * this.SOAP_CALLS_PER_USER;
+			
+			// Figure out how many "buckets" will be needed based on the number of SOAP calls
+			numUserProcesses = Math.ceil( numSOAPCalls / this.MAX_SOAP_CALLS_PER_PROCESS );
+			
+			// How many SOAP calls in each bucket?
+			userBucketSize = this.MAX_SOAP_CALLS_PER_PROCESS / this.SOAP_CALLS_PER_USER;
+		}
+		this.log.debug( 'UserProc: ' + numUserProcesses + " userBucketSize: " + userBucketSize);
+		this.log.info("Loading these users into xMatters:" + userList.join() );
+		
+		// Keeping an array of these workers seems like a good idea... not sure what we'll do with them.
+		var workers = [];
+		
+		
+		for( n=0; n<numUserProcesses; n++ ) {
+			var slice = userList.slice( n*userBucketSize, (n+1)*userBucketSize );
+			if (slice.length > 0) {
+				this.log.debug( 'Slice: ' + n + ': ' + slice );
+				workers.push( this.userSync.syncUsersAsync(slice) );
+			}
+		}
+		
+		this.log.warn("xMatters batch user sync. " + workers.length + " workers started at " + new Date() + ": " + workers + ". Time elapsed: " + this.soapHelper.timer(start.getTime()) + " ms.");
+	},
+	
+	// Group stuff
+	syncGroups : function() {
+		var start = new Date();
+		this.log.debug("Loading groups into xMatters started: " + start);
+		
+		// Get the list of "sync'able" groups
+		var groupList = this.soapHelper.getxMGroups();
+		var numGroups = groupList.length;
+		this.log.debug("Group list completed: " + this.soapHelper.timer(start.getTime()) + " ms, " + numGroups + " groups.");
+		
+		// Determine the total number of SOAP calls that will be needed
+		var numSOAPCalls = numGroups * this.SOAP_CALLS_PER_GROUP;
+		
+		// Figure out how many "buckets" will be needed based on the number of SOAP calls
+		var numGroupProcesses = Math.ceil( numSOAPCalls / this.MAX_SOAP_CALLS_PER_PROCESS );
+		
+		// How many SOAP calls in each bucket?
+		var groupBucketSize = this.MAX_SOAP_CALLS_PER_PROCESS / this.SOAP_CALLS_PER_GROUP;
+		
+		this.log.debug( 'GroupProc: ' + numGroupProcesses );
+		this.log.info( 'Loading these groups into xMatters: ' + groupList.join() );
+		
+		var workers = [];
+		for( n=0; n<numGroupProcesses; n++ ) {
+			var slice = groupList.slice( n*groupBucketSize, (n+1)*groupBucketSize );
+			this.log.debug( 'Slice: ' + n + ': ' + slice );
+			if (numGroupProcesses == 1) {
+				this.groupSync.syncGroups(slice);
+			} else {
+				var worker = new GlideScriptedHierarchicalWorker();
+				// This is the name of the worker in the sys_progress_worker table.
+				worker.setProgressName("Group Sync Worker");
+				
+				// Instantiate the ScriptInclude and indicate which method to fire
+				// The parameters are passed in order, not by name, so the first
+				// value of that putMethodArg is not used.
+				worker.setScriptIncludeName( this.appPrefix + '.' + "xMattersGroupSync");
+				worker.setScriptIncludeMethod( "syncGroups" );
+				worker.putMethodArg("list", slice );
+				
+				worker.setBackground(true);
+				worker.start();
+				workers.push( worker.getProgressID() );
+			}
+		}
+		this.log.warn("xMatters batch group sync. " + workers.length + " workers started: " + workers + ". Time elapsed: " + this.soapHelper.timer(start.getTime()) + " ms.");
+	}
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-03-11 17:49:08</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>37c407644f7a31000e9fa88ca310c7d8</sys_id>
+        <sys_mod_count>15</sys_mod_count>
+        <sys_name>xMattersBackgroundBatchSync</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_37c407644f7a31000e9fa88ca310c7d8</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-04-06 17:59:22</sys_updated_on>
+    </sys_script_include>
+</record_update>

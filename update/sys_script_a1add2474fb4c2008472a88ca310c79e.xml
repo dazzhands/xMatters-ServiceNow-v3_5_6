@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update sys_domain="global" table="sys_script">
+    <sys_script action="INSERT_OR_UPDATE">
+        <abort_action>false</abort_action>
+        <access>package_private</access>
+        <action_delete>true</action_delete>
+        <action_insert>true</action_insert>
+        <action_query>false</action_query>
+        <action_update>true</action_update>
+        <active>true</active>
+        <add_message>false</add_message>
+        <advanced>true</advanced>
+        <change_fields>false</change_fields>
+        <client_callable>false</client_callable>
+        <collection>sys_user_grmember</collection>
+        <condition/>
+        <description/>
+        <execute_function>true</execute_function>
+        <filter_condition/>
+        <is_rest>false</is_rest>
+        <message/>
+        <name>xMatters Group Member Sync</name>
+        <order>100</order>
+        <priority>100</priority>
+        <rest_method/>
+        <rest_method_text/>
+        <rest_service/>
+        <rest_service_text/>
+        <rest_variables/>
+        <role_conditions/>
+        <script><![CDATA[function onAfter(current, previous) {
+  //This function will be automatically called when this rule is processed.
+  gs.include("xMattersLogger");
+  gs.include("xMattersGroupMemberSync");
+  
+  var appPrefix = gs.getCurrentScopeName();
+  var log = new xMattersLogger( appPrefix + '.' + gs.getProperty("xmatters.logging.level"));
+  
+  if(gs.getProperty(appPrefix + '.' + "xmatters.sync.dynamically") == "true") {
+    log.debug("Trigger rule for Group Membership = " + current.operation());
+    
+    if (current.operation() == "update") {
+      log.warn("Business rule to update a member in a group in xMatters");
+    } else if (current.operation() == "insert") {
+      log.debug("Business rule to add a member to a group in xMatters");
+      syncMembership(current);
+    } else if (current.operation() == "delete") {
+      log.debug("Business rule to delete " + current.user.user_name + " member of a group from xMatters");
+      syncMembership(current, current.user.user_name.toString());
+    } else {
+      log.error("Business Rule 'xMatters Group Member Sync' ran during operation = "+current.operation()+". This should be considered an error.");
+    }
+  } else {
+    log.debug("User will not be synchronized as the 'Dynamic Sync' property is turned off");
+  }
+  
+  function syncMembership(record, userToDelete) {
+    try {      
+      // With the new quta rules, we have to send these
+      // HTTP calls to the background for completion.
+      worker = new GlideScriptedHierarchicalWorker();
+      worker.setProgressName("Group Member Sync Worker");
+      
+      worker.setBackground( true );
+      // specify a script include and method to call, with whatever parameters you need
+      worker.setScriptIncludeName( appPrefix + '.' + "xMattersGroupMemberSync");
+      worker.setScriptIncludeMethod( "syncMembership" );
+      worker.putMethodArg("groupName", record.group.name.toString() );
+      worker.putMethodArg("userToDelete", userToDelete );
+      
+      worker.start();
+    } catch(e) {
+      log.error(e + ': ' + e.message );
+    }
+  }
+}]]></script>
+        <sys_class_name>sys_script</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-06-26 19:29:05</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_domain>global</sys_domain>
+        <sys_domain_path>/</sys_domain_path>
+        <sys_id>a1add2474fb4c2008472a88ca310c79e</sys_id>
+        <sys_mod_count>2</sys_mod_count>
+        <sys_name>xMatters Group Member Sync</sys_name>
+        <sys_overrides/>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_a1add2474fb4c2008472a88ca310c79e</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-09-30 20:59:08</sys_updated_on>
+        <template/>
+        <when>after</when>
+    </sys_script>
+    <sys_translated_text action="delete_multiple" query="documentkey=a1add2474fb4c2008472a88ca310c79e"/>
+</record_update>

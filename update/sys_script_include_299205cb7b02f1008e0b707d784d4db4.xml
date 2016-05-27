@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersIncident</api_name>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>xMattersIncident</name>
+        <script><![CDATA[// Include the xMattersSOAPHelper Script Include for use in this script action
+
+gs.include("xMattersRESTHelper");
+gs.include("xMattersLogger");
+ 
+var xMattersIncident = Class.create();
+
+xMattersIncident.prototype = {
+	
+  initialize : function() {
+    this.appPrefix = gs.getCurrentScopeName();
+    this.restHelper = new xMattersRESTHelper();
+    this.log = new xMattersLogger(gs.getProperty(this.appPrefix + '.' + "xmatters.logging.level"), 'xMattersIncident' );
+  },
+
+  /**
+  * Handles incident action(s) 
+  * @param record current record
+  * @param parms an object describing actions to be performed
+  */
+  handleIncidentAction : function(record, parms) {
+	this.log.debug("handleIncidentAction for incident " + record.number + " with parameters " + new global.JSON().encode(parms));
+	  
+    var notes = [];
+
+    if( parms.terminate ) {
+      notes.push( this.deleteIncident( record, parms.triggerRule ) );
+    }
+	  
+    if( parms.sendEvent ) {
+      notes.push( this.addIncident( record, parms.triggerRule, parms.userName ) );
+    }
+	  
+    this.log.debug( 'Notes: ' + notes );
+    
+    // create the final work notes if the notes array has items to be added to the work notes
+    if (notes.length > 0) {
+      record.work_notes = notes.join("\n");
+      record.update();
+    }
+  },
+	
+  /**
+  * Adds an incident to the xMatters (alarmpoint) Engine
+  * @param record current record
+  * @param triggerRule String containing the trigger rule
+  * @param userName name of the current user
+  */
+  addIncident : function(record, triggerRule, userName) {    
+    var recipients = this.getRecipients(record, userName);
+
+    // Send the event to xMatters
+    this.log.debug( 'addIncident assignee: |' + record.assigned_to.user_name.getDisplayValue() + '| recipients: |' + recipients + '| current user: |' + userName + '| api.user: |' + gs.getProperty(this.appPrefix + '.' + "xmatters.api.user") + '|');
+      
+    if( recipients == record.assigned_to.user_name.getDisplayValue() && userName == gs.getProperty(this.appPrefix + '.' + "xmatters.api.user") ) { 
+	  // TODO: check notifying yourself setting here too
+      return "[xMatters] - Skipping notification for '" + recipients + "'";
+	}
+	  
+    var endpoint = gs.getProperty(this.appPrefix + '.' + "xmatters.reb.incident.endpoint");
+        
+    var inboundProcessor    = this.appPrefix + '_' + 'xMattersRESTProcessor.do';
+    var emitStatus          = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.status.updates' );
+    var emitdDeliveryStatus = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.delivery.status.updates' );
+    var emitResponse        = "true";
+    
+    var callbacks = this.restHelper.callbackHelper( inboundProcessor, emitStatus, emitdDeliveryStatus, emitResponse );
+		    
+    var responses;
+	if( !gs.nil( record.assigned_to ) ) {
+    // If it is assigned to a group, use the group response options
+      responses = gs.getProperty( this.appPrefix + '.' + 'xmatters.reb.incident.individual.responses' );
+	} else {
+      // Otherwise, use the individual response options
+      responses = gs.getProperty( this.appPrefix + '.' + 'xmatters.reb.incident.group.responses' );
+	}
+    responses = ( gs.nil( responses ) ? [] : responses.split( ';' ) );
+    
+    var priority = 'medium';
+	if( record.priority.getDisplayValue() == '1 - Critical' ) {
+      priority = 'high';
+	}
+
+	var properties = {};
+    properties.number = String(record.number);
+    properties.incident_id = String(record.sys_id);
+    properties.short_description = String(record.short_description);
+    properties.assigned_to = record.assigned_to.getDisplayValue();
+    properties.assignment_group = record.assignment_group.getDisplayValue();
+    properties.category = record.category.getDisplayValue(); // u_service_component?
+    properties.sub_category = record.subcategory.getDisplayValue();
+    properties.impact = record.impact.getDisplayValue();
+    properties.urgency = record.severity.getDisplayValue();
+    properties.priority = record.priority.getDisplayValue();
+    properties.location = record.location.getDisplayValue();
+    properties.state = record.incident_state.getDisplayValue(); // state
+    properties.caller = record.caller_id.getDisplayValue(); // u_requestor
+    properties.trigger = String(triggerRule);
+    properties.opened = record.opened_at.getDisplayValue();
+    properties.opened_by = record.opened_by.getDisplayValue();
+    properties.contact_type = record.contact_type.getDisplayValue();
+    properties.servicenowurl = gs.getProperty('glide.servlet.uri') ;
+    properties.xmatters_url = gs.getProperty( this.appPrefix + '.' + "xmatters.reb.events.endpoint" ).split("/reapi/")[0];
+	  
+	var ci = record.cmdb_ci.getDisplayValue();
+    properties.configuration_item = ci;
+    
+    // Out of the box some of the CIs have random tab chars which messes with the JS. And the 'Macbook Pro 13"'
+    // Swap these two lines to enable subscriptions to configuration items. 
+    //this.setParameter("configuration_item_list", (!gs.nil( ci ) ? '[' + this.json.encode( ci ) + ']' : '[]' ), true );
+    properties.configuration_item_list = null;
+
+	var eventRecipients = null;
+	if (recipients != "") {
+	  eventRecipients = [];
+      eventRecipients.push({'targetName' : recipients});
+	}
+
+	try {
+	  this.log.debug("Attempting to inject an xMatters event for incident " + properties.number + " " + triggerRule);
+	  var id = this.restHelper.sendEvent(properties, eventRecipients, null, priority, callbacks, responses, endpoint);
+      return "[xMatters] - Injected notification with xM event ID " + id + " for " + triggerRule + (recipients != "" ? " targeting " + recipients : "");
+    } catch (e) {
+		this.log.error("[xMatters] - Injected notification event FAILED for incident " + properties.number + ": " + e);
+      return "[xMatters] - Injected notification event FAILED for " + triggerRule + (recipients != "" ? " targeting " + recipients : ", please refer to logs for more details");      
+    }
+  },
+  
+  /**
+  * Terminates an incident in the xMatters (alarmpoint) Engine
+  * @param record current record
+  * @param triggerRule String containing the trigger rule
+  */
+  deleteIncident : function(record, triggerRule) {
+    // Terminate the related event in xMatters
+    try {
+      this.restHelper.sendTerminateEvent("number", record.number.toString());
+      return "[xMatters] - Terminated existing events for this Incident";
+    } catch (e) {
+      return "[xMatters] - Injected termination event for " + triggerRule;
+    }
+  },
+  
+  
+  /**
+  * Unpacks the configuration items into a comma delimited string
+  * @param record current record
+  * @return String containing comma separated list of affected CIs
+  */
+  getAffectedCIs : function(record) {
+    var gr = new GlideRecord("task_ci");
+    gr.addQuery("task.sys_id", record.sys_id);
+    gr.query();
+    
+    var affectedCI = "";
+    var first = true;
+    while(gr.next())
+      {
+      affectedCI += (first ? "" : ",") + gr.ci_item.name;
+      first = false;
+    }
+    return affectedCI;
+  },
+  
+  /**
+  * Figure out what the list of recipients should be set to based on the trigger rule
+  * @param record current record
+  * @param userName currently logged in user
+  * @return the list of recipients for that trigger rule
+  */
+  getRecipients : function(record, userName)
+  {
+    //Default to User if available and Primary Group otherwise.
+    var recipients = record.assigned_to.user_name; 
+    if (recipients == null || recipients == "") {
+      recipients = record.assignment_group.name;
+    } else if (gs.getProperty(this.appPrefix + '.' + "xmatters.notify.assigned.to.current.user").toLowerCase() == "false") {
+      /* amagi 04/10/2013
+      * this no longer works as we are using a web session with the inbound REST requests
+      * so the user from xMatters will match the "logged in user" in the session
+      // If the logged in user is the one making the changes do not notify them
+      this.log.debug("Current Logged In User: " + userName);
+      this.log.debug("Assigned User: " +  record.assigned_to.user_name);
+      recipients = userName != record.assigned_to.user_name ? record.assigned_to.user_name : "";
+      */
+      recipients = record.assigned_to.user_name;
+    }
+    return String(recipients);
+  },
+  
+  /**
+  * Append the Work and Mobile Phone numbers into a single string if available
+  * @param record current record
+  */
+  getCallerPhone : function(record)
+  {
+    var callerPhone = !record.caller_id.phone.nil() ? record.caller_id.phone + " (W)" : "";
+    callerPhone += (!record.caller_id.phone.nil() && !record.caller_id.mobile_phone.nil()) ? ", " : "";
+    callerPhone += !record.caller_id.mobile_phone.nil() ? record.caller_id.mobile_phone + " (M)" : "";
+    
+    return callerPhone;
+  }
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-02-09 19:56:27</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>299205cb7b02f1008e0b707d784d4db4</sys_id>
+        <sys_mod_count>20</sys_mod_count>
+        <sys_name>xMattersIncident</sys_name>
+        <sys_package display_value="Global" source="global">global</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_299205cb7b02f1008e0b707d784d4db4</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-04-07 22:56:48</sys_updated_on>
+    </sys_script_include>
+</record_update>

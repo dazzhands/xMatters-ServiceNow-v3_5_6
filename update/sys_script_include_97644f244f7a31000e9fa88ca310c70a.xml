@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMBatchStarter</api_name>
+        <client_callable>true</client_callable>
+        <description/>
+        <name>xMBatchStarter</name>
+        <script><![CDATA[var xMBatchStarter = Class.create();
+xMBatchStarter.prototype = Object.extendsObject(global.AbstractAjaxProcessor, {
+    type: 'xMBatchStarter',
+	
+  start: function() {
+		appPrefix = gs.getCurrentScopeName() + '.';
+		
+		gs.info( 'MyWorkStarter? appPrefix: ' + appPrefix );
+		var worker = new GlideScriptedHierarchicalWorker();
+		worker.setProgressName( "Testing Worker" );
+		
+		worker.setBackground(true);
+		// specify a script include and method to call, with whatever parameters you need
+		worker.setScriptIncludeName( appPrefix + "xMBackgroundBatchSync");
+		worker.setScriptIncludeMethod("run");
+		worker.putMethodArg("arg1", "foo");
+		worker.putMethodArg("arg2", "bar");
+		
+		worker.start();
+		
+		gs.info("getProgressID = " + worker.getProgressID());
+		return worker.getProgressID();
+		
+	}
+	
+});]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-03-11 17:47:24</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>97644f244f7a31000e9fa88ca310c70a</sys_id>
+        <sys_mod_count>1</sys_mod_count>
+        <sys_name>xMBatchStarter</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_97644f244f7a31000e9fa88ca310c70a</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-03-11 18:14:03</sys_updated_on>
+    </sys_script_include>
+</record_update>

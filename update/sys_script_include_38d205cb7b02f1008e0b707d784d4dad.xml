@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersTask</api_name>
+        <client_callable>false</client_callable>
+        <description>Business level object to deal with sending tasks to the xMattersRESTHelper.sendAddTaskRESTMessage.</description>
+        <name>xMattersTask</name>
+        <script><![CDATA[// Include the xMattersSOAPHelper Script Include for use in this script action
+gs.include("xMattersRESTHelper");
+gs.include("xMattersLogger");
+
+var xMattersTask = Class.create();
+
+xMattersTask.prototype = {
+	
+  initialize : function() {
+    this.restHelper = new xMattersRESTHelper();
+    this.appPrefix  = gs.getCurrentScopeName();
+    this.log = new xMattersLogger(gs.getProperty(this.appPrefix + '.' + "xmatters.logging.level"), 'xMattersTask');
+    this.json = new global.JSON();
+  },
+  
+  /**
+  *
+  * @param rec current record
+  * @param triggerRule String containing the trigger rule
+  */
+  addTask : function( rec, triggerRule ) {
+    var isConference = false;
+    
+    var xmurl = gs.getProperty( this.appPrefix + '.' + "xmatters.reb.events.endpoint" ).split("/reapi/")[0];
+    
+    var properties = {};
+    properties.task_message =            "" + rec.message.getDisplayValue();
+    properties.task_number =             "" + rec.number.getDisplayValue();
+    properties.task_priority =           "" + rec.send_priority.getDisplayValue();
+    properties.task_message_subject =    "" + rec.message_subject;
+    properties.task_state =              "" + rec.state.getDisplayValue();
+    properties.task_escalation =         "" + rec.escalation.getDisplayValue();
+    properties.task_sys_id =             "" + rec.sys_id;
+    properties.caller =              "" + rec.parent_incident.caller_id.getDisplayValue();
+    properties.category =            "" + rec.parent_incident.category.getDisplayValue();
+    properties.configuration_item =  this.json.encode( "" + rec.parent_incident.cmdb_ci.getDisplayValue() );
+    properties.contact_type =        "" + rec.parent_incident.contact_type.getDisplayValue();
+    properties.impact =              "" + rec.parent_incident.impact.getDisplayValue();
+    properties.incident_id =         "" + rec.parent_incident.sys_id;
+    properties.location =            "" + rec.parent_incident.location.getDisplayValue();
+    properties.number =              "" + rec.parent_incident.number;
+    properties.opened =              "" + rec.parent_incident.opened_at;
+    properties.opened_by =           "" + rec.parent_incident.opened_by.getDisplayValue();
+    //      properties.priority =            "" + rec.parent_incident.priority.getDisplayValue();
+    properties.short_description =   "" + rec.parent_incident.short_description;
+    properties.state =               "" + rec.parent_incident.state.getDisplayValue();
+    properties.sub_category =        "" + rec.parent_incident.sub_category;
+    properties.urgency =             "" + rec.parent_incident.urgency.getDisplayValue();
+    properties.trigger =             triggerRule;
+    properties.servicenowurl =       gs.getProperty('glide.servlet.uri');
+    properties.xmatters_url =        xmurl;
+    
+    var recipients = [];
+    var array =  rec.recipients.toString().split(',');
+    for( var i=0; i < array.length; i++ ) {
+      if (array[i] != "") {
+        recipients.push( { "targetName": array[i] } );
+      }
+    }
+    
+    // The u_conference_bridge visibility is controled by the
+    // "xM Show/Hide Conference Items" client script
+    var conferences = [];
+    if( rec.conference_bridge != 'None' ) {
+      isConference = true;
+      if( rec.conference_bridge == 'Hosted' )
+        conferences.push( { "name": null } );
+      else
+        conferences.push( { "name": "" + rec.conference_bridge } );
+    }
+    
+    var inboundProcessor    = this.appPrefix + '_' + 'xMattersTaskRESTProcessor.do';
+    var emitStatus          = gs.getProperty( this.appPrefix + '.' + 'xmatters.task.event.status.updates' );
+    var emitdDeliveryStatus = gs.getProperty( this.appPrefix + '.' + 'xmatters.task.event.delivery.status.updates' );
+    var emitResponse        = "true";
+    
+    var callbacks = this.restHelper.callbackHelper( inboundProcessor, emitStatus, emitdDeliveryStatus, emitResponse );
+    
+    var responses;
+    if( isConference ) {
+      responses = gs.getProperty( this.appPrefix + '.' + 'xmatters.task.response.options.conference' );
+    } else {
+      responses = gs.getProperty( this.appPrefix + '.' + 'xmatters.task.response.options' );
+    }
+    responses = ( gs.nil( responses ) ? [] : responses.split( ';' ) );
+    
+    var priority = rec.send_priority.getDisplayValue();
+    
+    var endpoint = gs.getProperty( this.appPrefix + '.' +  "xmatters.reb.task.endpoint" );
+	if( isConference ) {
+      endpoint = gs.getProperty( this.appPrefix + '.' + 'xmatters.reb.task.conference.endpoint' );
+	}
+    // Send the event to xMatters
+    try {
+      var id = this.restHelper.sendEvent( properties, recipients, conferences, priority, callbacks, responses, endpoint );
+      return "[xMatters] - created xMatters event with eventID " + id + " " + (recipients.length > 0 ? " targeting '" + rec.recipients +"'" : "");
+    } catch (e) {      
+      return "[xMatters] - creation of xMatters event FAILED " + (recipients.length > 0 ? " targeting " + rec.recipients : ", please refer to logs for more details");
+    }
+  },
+  
+  /**
+  * Terminates an incident in the xMatters (alarmpoint) Engine
+  * @param rec current rec
+  * @param triggerRule String containing the trigger rule
+  */
+  deleteTask : function(rec, triggerRule) {
+    // Send the event to xMatters
+    try {
+      this.restHelper.sendTerminateEvent("task_number", rec.number.toString());
+      return "[xMatters] - Terminated existing events for this task";
+    } catch (e) {
+      return "[xMatters] - Termination of events failed: " + e;
+    }
+  }
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2015-02-09 19:57:33</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>38d205cb7b02f1008e0b707d784d4dad</sys_id>
+        <sys_mod_count>34</sys_mod_count>
+        <sys_name>xMattersTask</sys_name>
+        <sys_package display_value="Global" source="global">global</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_38d205cb7b02f1008e0b707d784d4dad</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2015-09-30 21:30:40</sys_updated_on>
+    </sys_script_include>
+</record_update>
