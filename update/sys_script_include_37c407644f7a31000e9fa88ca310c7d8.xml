@@ -141,7 +141,7 @@ xMattersBackgroundBatchSync.prototype = {
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-03-11 17:49:08</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_id>37c407644f7a31000e9fa88ca310c7d8</sys_id>
         <sys_mod_count>15</sys_mod_count>
         <sys_name>xMattersBackgroundBatchSync</sys_name>

@@ -9,7 +9,7 @@
         <sys_class_name>ua_table_licensing_config</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2016-05-24 21:24:54</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_id>5512b95adb2312009a0255d0cf961931</sys_id>
         <sys_mod_count>0</sys_mod_count>
         <sys_name>x_xma_xmatters_engage_with_xmatters</sys_name>

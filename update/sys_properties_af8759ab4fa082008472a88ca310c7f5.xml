@@ -11,7 +11,7 @@
         <sys_class_name>sys_properties</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-06-15 17:22:33</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_id>af8759ab4fa082008472a88ca310c7f5</sys_id>
         <sys_mod_count>3</sys_mod_count>
         <sys_name>x_xma_xmatters.xmatters.task.conference.bridges</sys_name>

@@ -13,17 +13,17 @@
         <sys_created_on>2015-02-09 22:07:30</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>4d9065437b42f1008e0b707d784d4d78</sys_id>
-        <sys_mod_count>8</sys_mod_count>
+        <sys_mod_count>9</sys_mod_count>
         <sys_name>x_xma_xmatters.xmatters.reb.task.endpoint</sys_name>
-        <sys_package display_value="Global" source="global">global</sys_package>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_properties_4d9065437b42f1008e0b707d784d4d78</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-05-26 03:54:37</sys_updated_on>
+        <sys_updated_on>2016-05-30 22:43:21</sys_updated_on>
         <type>string</type>
-        <value>https://integrations.cs1.xmatters.com/reapi/2015-04-01/forms/1ace1de9-487f-491e-8b62-bb7f83d39fcf/triggers</value>
+        <value>https://integrations.cs1.xmatters.com/reapi/2015-04-01/forms/0fc81490-01f7-4513-9bf5-bd2cde109feb/triggers</value>
         <write_roles/>
     </sys_properties>
     <sys_translated_text action="delete_multiple" query="documentkey=4d9065437b42f1008e0b707d784d4d78"/>
