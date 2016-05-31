@@ -11,7 +11,7 @@
         <sys_class_name>sys_properties</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 22:06:22</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_id>4950e1437b42f1008e0b707d784d4da1</sys_id>
         <sys_mod_count>8</sys_mod_count>
         <sys_name>x_xma_xmatters.xmatters.reb.incident.group.responses</sys_name>
