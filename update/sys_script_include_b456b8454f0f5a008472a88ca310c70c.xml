@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersDataHelper</api_name>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>xMattersDataHelper</name>
+        <script><![CDATA[/**
+ * Created by dfraser on 06/06/16.
+ */
+gs.include("xMattersLogger");
+
+var xMattersDataHelper = Class.create();
+xMattersDataHelper.prototype = {
+
+    /**
+     * instantiate the data helper. Accepts a hostname, username and password
+     * 
+     * @param hostname to send requests to
+     * @param username for basic authentication
+     * @param password for basic authentication
+     */
+    initialize: function (hostname, username, password) {
+        this.log = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"), 'xMattersDataHelper');
+
+        // Assume we're using the hostname in the incident endpoint
+        // but if one is passed in, use that.
+        this.hostname = gs.getProperty("x_xma_xmatters.xmatters.reb.events.endpoint").split("/reapi/")[0];
+        if (hostname) {
+            this.hostname = hostname;
+        }
+
+        // Set up the username and password
+        this.username = gs.getProperty("x_xma_xmatters.xmatters.reb.user");
+        this.password = gs.getProperty("x_xma_xmatters.xmatters.reb.password");
+        if (username) {
+            this.username = username;
+            this.password = password;
+        }
+
+        this.log.debug('xMattersDataHelper.init: Hostname: ' + this.hostname + '. User: ' + this.username);
+    },
+
+    /**
+     * sends an HTTP request in the background (asynchronously)
+     *
+     * example of opts:
+     * {
+     *   "method" - The HTTP method to use.
+     *   "path"   - The path to append to the hostname
+     *   "headers" - Name value pairs for passing headers
+     *   "body"   - Payload body. [optional]
+     *   "hostname"  - Override the hostname
+     *   "username"  - Override the username
+     *   "password"  - Override the password
+     * }
+
+     * @param opts object containing method, headers and payload to pass through
+     * @returns {*}
+     */
+    sendRequestAsync: function (opts) {
+        this.log.debug('sendRequestAsync parameters: ' + opts.method + ' ' +
+            ( opts.hostname ? opts.hostname : this.hostname) + opts.path);
+        
+        // Create GlideScriptedHierarchicalWorker
+
+        // The putMethodArg doesn't pass arrays nicely,
+        // so we'll turn this into a string and then decode
+        // on the other side
+        var str = new global.JSON().encode(opts);
+
+        var worker = new GlideScriptedHierarchicalWorker();
+        worker.setProgressName("x_xma_xmatters.xMattersDataHelper '" + opts.method + "' " + opts.path);
+
+        worker.setBackground(true);
+        worker.setScriptIncludeName("x_xma_xmatters.xMattersDataHelper");
+        worker.setScriptIncludeMethod("sendRequest");
+        worker.putMethodArg("str", str);
+
+        worker.start();
+
+        return worker.getProgressID();
+    },
+
+    /**
+     * Sends an HTTP request and returns the response
+     * 
+     * @param {string|{}} arg an object or stringified object containing request data
+     * @returns {{status: *, body: string}}
+     */
+    sendRequest: function (arg) {
+        // If this was called from sendRequestAsync,
+        // the arg will be a JSON encoded string,
+        // otherwise, we expect a JSON object
+        var opts = arg;
+        if (typeof arg == 'string') {
+            opts = new global.JSON().decode(arg);
+        }
+
+        // Last chance to override the hostname, username and password
+        var h = ( opts.hostname ? opts.hostname : this.hostname );
+        var u = ( opts.username ? opts.username : this.username );
+        var p = ( opts.password ? opts.password : this.password );
+        var endpoint = h + opts.path;
+
+        this.log.debug('sendRequest parameters: ' + opts.method + ' ' + h + opts.path +
+            '. User: "' + u + '"');
+
+        // Build the RESTMessage.
+        var restMessage = new sn_ws.RESTMessageV2();
+
+        // For some reason, the method MUST be in
+        // lowercase, or else we get an enum exception
+        restMessage.setHttpMethod(opts.method.toLowerCase());
+        restMessage.setEndpoint(endpoint);
+
+        if (opts.headers) {
+            for (var item in opts.headers) {
+                if (opts.headers.hasOwnProperty(item)) {
+                    restMessage.setRequestHeader(item, opts.headers[item]);
+                }
+            }
+        }
+
+        // If there is a body, check to see if it
+        // needs stringifying, otherwise, just add it.
+        if (opts.body) {
+            if (typeof opts.body == 'object') {
+                body = new global.JSON().encode(opts.body);
+            }
+
+            restMessage.setRequestBody(body);
+        }
+
+        // Errors can happen if the username or password are acutally null
+        // If they need to not be set, pass as '' (empty string)
+        if (u && p) {
+            restMessage.setBasicAuth(u, p);
+        }
+
+        var response = restMessage.execute();
+        var status = response.getStatusCode();
+        var responseBody = response.haveError() ? response.getErrorMessage() : '';
+        responseBody += response.getBody();
+
+        var resp = {"status": status, "body": responseBody};
+        this.log.debug('sendRequest: request method: "' + opts.method.toLowerCase() +
+            '" path: "' + opts.path + '" response: ' + new global.JSON().encode(resp));
+
+        return resp;
+    },
+
+
+    type: 'xMattersDataHelper'
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2016-04-25 23:35:43</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>b456b8454f0f5a008472a88ca310c70c</sys_id>
+        <sys_mod_count>7</sys_mod_count>
+        <sys_name>xMattersDataHelper</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_b456b8454f0f5a008472a88ca310c70c</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-06-07 01:05:38</sys_updated_on>
+    </sys_script_include>
+</record_update>

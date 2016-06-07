@@ -12,160 +12,156 @@
 var xMattersProperties = Class.create();
 
 xMattersProperties.prototype = {
-  initialize : function() {
-    this.appPrefix = gs.getCurrentScopeName();
-    this.restMessage = null;
-    this.log = new xMattersLogger(gs.getProperty(this.appPrefix + '.' + "xmatters.logging.level"), 'xMattersProperties' );
-    this.json = new global.JSON();
-  },
-  
-  updateConfigurationItemList: function() {
-    
-    UUID = gs.getProperty( this.appPrefix + '.' + 'xmatters.sync.configurationitem.list.UUID' );
-    
-    if( gs.getProperty( this.appPrefix + '.' +'xmatters.sync.dynamically' ) != "true" )
-      return 'Not Sync\'d';
-    
-    baseURL = gs.getProperty( this.appPrefix + '.' + "xmatters.reb.events.endpoint" ).split("/reapi/")[0];
-    endpoint = baseURL + '/reapi/2013-12-01/properties/' + UUID + '/values';
-    
-    
-    this.restMessage = new sn_ws.RESTMessageV2( 'xMatters Properties', 'put' );
-    this.restMessage.setEndpoint( endpoint );
-    
-    
-    payload = this.getCIs();
-    
-    this.log.debug( 'xMattersProperties: payload: |' + payload + '|' );
-    
-    //this.restMessage.setXMLParameter( 'payload', payload );
-    this.restMessage.setStringParameterNoEscape( 'payload', payload );
-    
-    
-    this.send();
-    return payload;
-    
-    
-  },
-  
-  getCIs : function( ) {
-    var gr = new GlideRecord("cmdb_ci");
-    
-    
-    qry = gs.getProperty( this.appPrefix + '.' + 'xmatters.sync.configurationitem.query' );
-    qry = ( gs.nil( qry ) ? '' : qry );
-    
-    gr.addEncodedQuery( qry );
-    gr.query();
-    
-    var ciList = [];
-    var arrayUtil = new global.ArrayUtil();
-    
-    while(gr.next()) {
-      // There seems to be a bug where the first entry is
-      // repeatedly added when you push a GlideRecord into
-      // an array. No seriously: https://community.servicenow.com/thread/167328
-      name = this.json.encode('' + gr.name );
-      ciList.push( name );
-    }
-    
-    ciList = arrayUtil.unique( ciList );
-    ciList.sort();
-    
-    return '[' + ciList.join( ) + ']';
-  },
-  
-  
-  /**
-  * Send the REST Request and process the response
-  */
-  send : function(  ) {
-    
-    
-    // set the REST user/password for the xMatters user to authenticate to the xM REST API
-    
-    this.restMessage.setBasicAuth(gs.getProperty(this.appPrefix + '.' + "xmatters.reb.user"), gs.getProperty(this.appPrefix + '.' + "xmatters.reb.password"));
-    
-    // In case of network hiccups, we attempt the call to xM 3 times.
-    count = 0;
-    maxTries = 1;
-    done = false;
-    
-    while( !done ) {
-      try{
-        
-        // If we hit the return, we did not hit the catch,
-        // so we just jump out of the entire function.
-        result = this.attemptSend();
-        return result;
-      }
-      
-      catch (e) {
-        // If we reach the maxTries limit
-        // then exit and pass along the error
-        if( ++count == maxTries ) {
-          s = "Failed sending event to xMatters after " + maxTries + " attempts. Error: " + e + ': ' + e.message;
-          this.log.error( s );
-          throw s;
+    initialize: function () {
+        this.appPrefix = gs.getCurrentScopeName();
+        this.restMessage = null;
+        this.log = new xMattersLogger(gs.getProperty(this.appPrefix + '.' + "xmatters.logging.level"), 'xMattersProperties');
+        this.json = new global.JSON();
+    },
+
+    updateConfigurationItemList: function () {
+
+        UUID = gs.getProperty(this.appPrefix + '.' + 'xmatters.sync.configurationitem.list.UUID');
+
+        if (gs.getProperty(this.appPrefix + '.' + 'xmatters.sync.dynamically') != "true")
+            return 'Not Sync\'d';
+
+        baseURL = gs.getProperty(this.appPrefix + '.' + "xmatters.reb.events.endpoint").split("/reapi/")[0];
+        endpoint = baseURL + '/reapi/2013-12-01/properties/' + UUID + '/values';
+
+
+        this.restMessage = new sn_ws.RESTMessageV2('xMatters Properties', 'put');
+        this.restMessage.setEndpoint(endpoint);
+
+
+        payload = this.getCIs();
+
+        this.log.debug('xMattersProperties: payload: |' + payload + '|');
+
+        //this.restMessage.setXMLParameter( 'payload', payload );
+        this.restMessage.setStringParameterNoEscape('payload', payload);
+
+
+        this.send();
+        return payload;
+
+
+    },
+
+    getCIs: function () {
+        var gr = new GlideRecord("cmdb_ci");
+
+
+        qry = gs.getProperty(this.appPrefix + '.' + 'xmatters.sync.configurationitem.query');
+        qry = ( gs.nil(qry) ? '' : qry );
+
+        gr.addEncodedQuery(qry);
+        gr.query();
+
+        var ciList = [];
+        var arrayUtil = new global.ArrayUtil();
+
+        while (gr.next()) {
+            // There seems to be a bug where the first entry is
+            // repeatedly added when you push a GlideRecord into
+            // an array. No seriously: https://community.servicenow.com/thread/167328
+            name = this.json.encode('' + gr.name);
+            ciList.push(name);
         }
-        
-      }
-      
+
+        ciList = arrayUtil.unique(ciList);
+        ciList.sort();
+
+        return '[' + ciList.join() + ']';
+    },
+
+
+    /**
+     * Send the REST Request and process the response
+     */
+    send: function () {
+
+
+        // set the REST user/password for the xMatters user to authenticate to the xM REST API
+
+        this.restMessage.setBasicAuth(gs.getProperty(this.appPrefix + '.' + "xmatters.reb.user"), gs.getProperty(this.appPrefix + '.' + "xmatters.reb.password"));
+
+        // In case of network hiccups, we attempt the call to xM 3 times.
+        count = 0;
+        maxTries = 1;
+        done = false;
+
+        while (!done) {
+            try {
+
+                // If we hit the return, we did not hit the catch,
+                // so we just jump out of the entire function.
+                result = this.attemptSend();
+                return result;
+            }
+
+            catch (e) {
+                // If we reach the maxTries limit
+                // then exit and pass along the error
+                if (++count == maxTries) {
+                    s = "Failed sending event to xMatters after " + maxTries + " attempts. Error: " + e + ': ' + e.message;
+                    this.log.error(s);
+                    throw s;
+                }
+
+            }
+
+        }
+    },
+
+    /**
+     * Send the REST Request and process the response
+     */
+    attemptSend: function () {
+
+        var restResponse = this.restMessage.execute();
+
+        if (restResponse == null) {
+            throw "REST Response is NULL";
+        }
+
+
+        if (restResponse.getStatusCode() == null) {
+            throw "REST Response HTTP Status Code is NULL";
+        }
+
+
+        if (restResponse.haveError()) {
+            this.log.error('restResponse.getErrorCode(): ' + restResponse.getErrorCode());
+            this.log.error('restResponse.getErrorMessage(): ' + restResponse.getErrorMessage());
+
+
+            this.log.error("An ERROR occured processing the REST " + " ErrorCode " + restResponse.getErrorCode() + " ErrorMessage " + restResponse.getErrorMessage());
+
+            throw restResponse.getErrorCode() + " " + restResponse.getErrorMessage();
+        } else {
+            this.log.debug("REST Response getBody = " + restResponse.getBody() + " StatusCode = " + restResponse.getStatusCode());
+        }
+
+        return;
+
     }
-  },
-  
-  /**
-  * Send the REST Request and process the response
-  */
-  attemptSend : function() {
-    
-    var restResponse = this.restMessage.execute();
-    
-    if(restResponse == null)
-      {
-      throw "REST Response is NULL";
-    }
-    
-    
-    if(restResponse.getStatusCode() == null)
-      {
-      throw "REST Response HTTP Status Code is NULL";
-    }
-    
-    
-    
-    if(restResponse.haveError())
-      {
-      this.log.error( 'restResponse.getErrorCode(): ' + restResponse.getErrorCode() );
-      this.log.error( 'restResponse.getErrorMessage(): ' + restResponse.getErrorMessage() );
-      
-      
-      this.log.error("An ERROR occured processing the REST " + " ErrorCode " + restResponse.getErrorCode() + " ErrorMessage " + restResponse.getErrorMessage()  );
-      
-      throw restResponse.getErrorCode() + " " + restResponse.getErrorMessage();
-    } else {
-      this.log.debug("REST Response getBody = " + restResponse.getBody() + " StatusCode = " + restResponse.getStatusCode() );
-    }
-    
-    return;
-    
-  }
-  
-  
+
+
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 19:56:52</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>83a205cb7b02f1008e0b707d784d4dea</sys_id>
-        <sys_mod_count>12</sys_mod_count>
+        <sys_mod_count>13</sys_mod_count>
         <sys_name>xMattersProperties</sys_name>
-        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_83a205cb7b02f1008e0b707d784d4dea</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-09-15 05:25:25</sys_updated_on>
+        <sys_updated_on>2016-06-07 01:06:31</sys_updated_on>
     </sys_script_include>
 </record_update>

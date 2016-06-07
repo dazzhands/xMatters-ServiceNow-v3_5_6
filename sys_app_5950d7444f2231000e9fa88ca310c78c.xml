@@ -3,7 +3,7 @@
     <sys_app action="INSERT_OR_UPDATE">
         <active>true</active>
         <enforce_license>log</enforce_license>
-        <js_level/>
+        <js_level>traditional</js_level>
         <licensable>true</licensable>
         <logo/>
         <menu/>
@@ -22,14 +22,14 @@
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-25 19:05:17</sys_created_on>
         <sys_id>5950d7444f2231000e9fa88ca310c78c</sys_id>
-        <sys_mod_count>81</sys_mod_count>
+        <sys_mod_count>83</sys_mod_count>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-04-08 22:14:38</sys_updated_on>
+        <sys_updated_on>2016-06-03 01:42:05</sys_updated_on>
         <template/>
         <trackable>true</trackable>
-        <user_role/>
+        <user_role display_value="user_admin" name="user_admin">049d55090a0a0a660162aa57a266b241</user_role>
         <vendor/>
         <vendor_prefix/>
-        <version>3.5.6</version>
+        <version>3.6.0.1</version>
     </sys_app>
 </record_update>

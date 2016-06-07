@@ -1,0 +1,609 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersPerson</api_name>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>xMattersPerson</name>
+        <script><![CDATA[/**
+ * xMattersPerson model for mapping xMatters person objects with ServiceNow users
+ *
+ * TODO: make sure syncs only occur based on x_xma_xmatters.xmatters.logging.level value(s)
+ *
+ * @type {Object}
+ */
+var xMattersPerson = Class.create();
+
+xMattersPerson.prototype = {
+
+    /**
+     * Initialize the xMattersPerson object
+     */
+    initialize: function () {
+        this.log = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"), 'xMattersPerson');
+
+        this.APIVERSION = '/api/xm/1';
+
+        this.userNameField = 'user_name';   // Some companies don't user user_name for the xM ID
+        this.externallyOwned = false;
+    },
+
+    /**
+     * Insert/Update user in xMatters asynchronously (in the background)
+     *
+     * @param userRec The sys_user record to sync, or the username of the user to sync.
+     * @param args Additional name/value pairs to add to the user body before sending to xM
+     * @returns {*}
+     */
+    syncUserAsync: function (userRec, args) {
+        var worker = new GlideScriptedHierarchicalWorker();
+        worker.setProgressName("x_xma_xmatters.xMattersPerson syncUser: " + userRec.user_name.getDisplayValue());
+
+        worker.setBackground(true);
+        worker.setScriptIncludeName("x_xma_xmatters.xMattersPerson");
+        worker.setScriptIncludeMethod("syncUser");
+        worker.putMethodArg("userRec", userRec);
+
+        // The putMethodArg doesn't pass arrays nicely,
+        // so we'll turn this into a string and then decode
+        // on the other side
+        if (args) {
+            var str = new global.JSON().encode(args);
+            worker.putMethodArg("str", str);
+        }
+
+        worker.start();
+
+        return worker.getProgressID();
+    },
+
+    /**
+     * Insert/Update user in xMatters synchronously (in the current "ground")
+     *
+     * @param user sys_user record to sync, or the username of the user to sync.
+     * @param args Additional name/value pairs to add to the user body before sending to xM
+     * @returns {*}
+     */
+    syncUser: function (user, args) {
+        var userRec = user;
+
+        // If a string is passed, then we'll help out and
+        // go get the user record.
+        if (typeof user == 'string') {
+            userRec = new GlideRecord('sys_user');
+            userRec.get('user_name', user);
+        }
+
+        var username = userRec[this.userNameField].getDisplayValue();
+        var devices = null;
+
+        var xMUser = this.getPersonFromxM(username);
+
+        // If the user wasn't found, no sense in
+        // attempting to retrieve their devices
+        if (xMUser != null) {
+            devices = this.getUsersDevicesFromxM(username);
+        }
+
+        xMUser = this.buildPersonObject(userRec, xMUser);
+
+        // If any additional elements are needed,
+        // such as supervisor or roles, then add them
+        // The conditional operator just checks if there
+        // is a value that matches the name in args,
+        // and if so, then use that, otherwise use the one
+        // in xMUser.
+        // Oh, and because the putMethodArg doesn't handle
+        // JSON very well, we had to string it there, so
+        // check for that.
+        if (args) {
+            if (typeof args == 'string') {
+                args = new global.JSON().decode(args);
+            }
+
+            for (var name in xMUser) {
+                // ignore propertes/methods inherited through prototype
+                if (xMUser.hasOwnProperty(name)) {
+                    // There isn't a good test if a variable is an array
+                    // in SN's js, so we just check if it has the 'push'
+                    // function.
+                    // We want to concatentate arrays, not overwrite
+                    if (typeof xMUser[name].push == 'function') {
+                        xMUser[name] = new global.ArrayUtil().concat(xMUser[name], args[name]);
+                    } else {
+                        xMUser[name] = args[name] ? args[name] : xMUser[name];
+                    }
+                }
+            }
+        }
+
+        var path = this.APIVERSION + '/people/';
+        var dataHelper = new xMattersDataHelper();
+
+        var opts = {
+            "path": path,
+            "method": 'POST',
+            "headers": {
+                "Content-type": "application/json"
+            },
+            "body": xMUser
+        };
+
+        this.log.debug('syncUser: opts: ' + (new global.JSON().encode(opts) ));
+        var resp = dataHelper.sendRequest(opts);
+
+        if (resp.status < 200 || resp.status > 299) { // allow any 2xx response
+            this.log.error('syncUser ERROR: ' + (new global.JSON().encode(resp) ));
+            return null;
+        }
+
+        xMUser = (new global.JSON().decode(resp.body) );
+
+        ownerID = xMUser.id;
+
+        if (!userRec.email.nil()) {
+            this.syncWorkEmailDevice(userRec, ownerID, devices);
+        }
+        if (!userRec.phone.nil()) {
+            this.syncWorkPhoneDevice(userRec, ownerID, devices);
+        }
+
+        if (!userRec.mobile_phone.nil()) {
+            this.syncMobilePhoneDevice(userRec, ownerID, devices);
+            this.syncSMSPhoneDevice(userRec, ownerID, devices);
+        }
+
+        return xMUser;
+    },
+
+    /**
+     * Map the fields from the sys_user rec to an xMatters person Obj
+     *
+     * If xMUser is passed, it is used as a template and values are
+     * overwritten with the values from the sys_user rec.
+     *
+     * @param userRec The sys_user record representing the user to get info from
+     * @param xMUser [optional] - the xMatters Person Object retrieved from xMatters
+     * @returns {{}}
+     */
+    buildPersonObject: function (userRec, xMUser) {
+        this.log.debug('buildPersonObject: entering for ' + userRec.user_name);
+
+        var user = {};
+
+        // Set the values from xM, then we'll overlay with the
+        // values from SN
+        if (xMUser) {
+            user = new global.JSON().decode(new global.JSON().encode(xMUser));
+        }
+
+        user.externalKey = userRec[this.userNameField].getDisplayValue();
+        user.targetName = userRec[this.userNameField].getDisplayValue();
+        user.firstName = userRec.first_name.getDisplayValue();
+        user.lastName = userRec.last_name.getDisplayValue();
+        user.externallyOwned = this.externallyOwned;
+
+        if (!user.supervisors) {
+            user.supervisors = [];
+        }
+
+        // First, we'll add the default group supervisor
+        var defaultSupervisor = this.getPersonFromxM(gs.getProperty('x_xma_xmatters.xmatters.sync.supervisor'));
+        if (defaultSupervisor) {
+            user.supervisors.push(defaultSupervisor.id);
+        }
+
+        // Ideally, we'd check if this user already had the Group Supervisor role,
+        // but the api does not return the roles from a user, so we'll check if they
+        // are syncable and just add it anyway.
+        //TODO: Could this possible sync the same supervisor over and over (while syncing a batch of users)?
+        var mgr;
+        var mgrRec = new GlideRecord('sys_user');
+        mgrRec.get('user_name', userRec.manager.user_name.getDisplayValue());
+
+        if (this.isSyncableUser(mgrRec)) {
+            this.log.debug('buildPersonObject: Person manager "' + mgrRec.user_name +
+                '" isSyncableUser: true. Syncing with Person Supervisor role');
+            mgr = this.syncUser(mgrRec, {"roles": ["Person Supervisor"]});
+
+            user.supervisors.push(mgr.id);
+        }
+
+        // The roles aren't returned from the GET people api call (yet),
+        // but we'll leave this here in case it is added in the future.
+        // In the mean time, we'll just keep adding the roles from the
+        // configuration
+        if (!user.roles) {
+            user.roles = [];
+        }
+
+        //TODO: Should we always add the user.sync.role to everyone? [ And is that really what is happening here? ]
+        var arrUtil = new global.ArrayUtil();
+        user.roles = arrUtil.concat(user.roles, gs.getProperty('x_xma_xmatters.xmatters.user.sync.role').split(';'));
+
+        if (!user.site) {
+            user.site = this.getSite(gs.getProperty('x_xma_xmatters.xmatters.sync.site')).id;
+        }
+
+        this.log.debug('Person Object ' + (new global.JSON().encode(user) ));
+
+        return user;
+    },
+
+    /**
+     * Gets the user from xMatters and returns the Person Object
+     *
+     * @param username the is or targetName of the person to retrieve
+     * @returns {*}
+     */
+    getPersonFromxM: function (username) {
+        var path = this.APIVERSION + '/people/' + encodeURIComponent(username);
+
+        var opts = {
+            "method": "GET",
+            "path": path
+        };
+
+        this.log.debug('getPersonFromxM: opts: ' + (new global.JSON().encode(opts) ));
+
+        var dataHelper = new xMattersDataHelper();
+        var resp = dataHelper.sendRequest(opts);
+
+        // TODO: What should we do if we didn't get a 200?
+        if (resp.status != 200) {
+            return null;
+        }
+
+        return new global.JSON().decode(resp.body);
+    },
+
+    /**
+     * Gets the user's devices from xMatters
+     *
+     * @param username the id or targetName of the device owner
+     * @returns {*}
+     */
+    getUsersDevicesFromxM: function (username) {
+        var path = this.APIVERSION + '/people/' + encodeURIComponent(username) + '/devices';
+
+        var opts = {
+            "method": "GET",
+            "path": path
+        };
+        var dataHelper = new xMattersDataHelper();
+        var resp = dataHelper.sendRequest(opts);
+
+        // TODO: What should we do if we didn't get a 200?
+        if (resp.status != 200) {
+            return null;
+        }
+
+        return new global.JSON().decode(resp.body);
+    },
+
+    /**
+     * sync the person's email device to xMatters
+     *
+     * This function will attempt to extract the Work Email device from
+     * the devices list passed in, and will build/update off of that.
+     * Otherwise, a new device will be crafted and created in xM.
+     *
+     * @param userRec The sys_user record of the SN user
+     * @param ownerID The xMatters Person id value for attaching the device to.
+     * @param devices [optional] A list of existing devices, returned from getUsersDevicesFromxM
+     */
+    syncWorkEmailDevice: function (userRec, ownerID, devices) {
+        var xmDevice = new xMattersDevice();
+        var deviceName = gs.getProperty('x_xma_xmatters.xmatters.user.sync.email.device.name');
+        var device;
+
+        if (deviceName == null || deviceName == '') {
+            this.log.info('Not sync\'ing "Work Email (EMAIL)" device as the ' +
+                '"x_xma_xmatters.xmatters.user.sync.email.device.name" property is empty');
+            return;
+        }
+
+        // If a list of devices are passed,
+        // search through there to get the device
+        if (devices) {
+            device = xmDevice.extractDeviceByName(deviceName, devices);
+        }
+
+        if (!device) {
+            device = {
+                "name": deviceName,
+                "recipientType": "DEVICE",
+                "deviceType": "EMAIL",
+                "owner": ownerID
+            };
+        }
+
+        device.emailAddress = userRec.email.getDisplayValue();
+
+        this.log.debug('syncDevice: Device: ' + deviceName + ': ' + (new global.JSON().encode(device)));
+        xmDevice.syncDevice(device);
+    },
+
+    /**
+     * sync the person's work phone device to xMatters
+     *
+     * @param userRec The sys_user record of the SN user
+     * @param ownerID The xMatters Person id value for attaching the device to.
+     * @param devices [optional] A list of existing devices, returned from getUsersDevicesFromxM
+     */
+    syncWorkPhoneDevice: function (userRec, ownerID, devices) {
+        var xmDevice = new xMattersDevice();
+        var deviceName = gs.getProperty('x_xma_xmatters.xmatters.user.sync.work.phone.device.name');
+        var device;
+
+        if (deviceName == null || deviceName == '') {
+            this.log.info('Not sync\'ing "Work Phone (VOICE)" device as the ' +
+                '"x_xma_xmatters.xmatters.user.sync.work.phone.device.name" property is empty');
+            return;
+        }
+
+        if (devices) {
+            device = xmDevice.extractDeviceByName(deviceName, devices);
+        }
+
+        if (!device) {
+            device = {
+                "name": deviceName,
+                "recipientType": "DEVICE",
+                "deviceType": "VOICE",
+                "owner": ownerID
+            };
+        }
+
+        device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.phone.getDisplayValue());
+
+        this.log.debug('syncDevice: Device: ' + deviceName + ': ' + (new global.JSON().encode(device)));
+        xmDevice.syncDevice(device);
+    },
+
+    /**
+     * sync the person's mobile phone device to xMatters
+     *
+     * @param userRec The sys_user record of the SN user
+     * @param ownerID The xMatters Person id value for attaching the device to.
+     * @param devices [optional] A list of existing devices, returned from getUsersDevicesFromxM
+     */
+    syncMobilePhoneDevice: function (userRec, ownerID, devices) {
+        var xmDevice = new xMattersDevice();
+        var deviceName = gs.getProperty('x_xma_xmatters.xmatters.user.sync.mobile.phone.device.name');
+        var device;
+
+        if (deviceName == null || deviceName == '') {
+            this.log.info('Not sync\'ing "Mobile Phone (VOICE)" device as the ' +
+                '"x_xma_xmatters.xmatters.user.sync.mobile.phone.device.name" property is empty');
+            return;
+        }
+
+        if (devices) {
+            device = xmDevice.extractDeviceByName(deviceName, devices);
+        }
+
+        if (!device) {
+            device = {
+                "name": deviceName,
+                "recipientType": "DEVICE",
+                "deviceType": "VOICE",
+                "owner": ownerID
+
+            };
+        }
+
+        device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.mobile_phone.getDisplayValue());
+
+        this.log.debug('syncDevice: Device: ' + deviceName + ': ' + (new global.JSON().encode(device)));
+        xmDevice.syncDevice(device);
+    },
+
+    /**
+     * sync the person's SMS device to xMatters
+     *
+     * @param userRec The sys_user record of the SN user
+     * @param ownerID The xMatters Person id value for attaching the device to.
+     * @param devices [optional] A list of existing devices, returned from getUsersDevicesFromxM
+     */
+    syncSMSPhoneDevice: function (userRec, ownerID, devices) {
+        var xmDevice = new xMattersDevice();
+        var deviceName = gs.getProperty('x_xma_xmatters.xmatters.user.sync.sms.device.name');
+        var device;
+
+        if (deviceName == null || deviceName == '') {
+            this.log.info('Not sync\'ing "Mobile Phone (SMS)" device as the ' +
+                '"x_xma_xmatters.xmatters.user.sync.sms.device.name" property is empty');
+            return;
+        }
+
+        if (devices) {
+            device = xmDevice.extractDeviceByName(deviceName, devices);
+        }
+
+        if (!device) {
+            device = {
+                "name": deviceName,
+                "recipientType": "DEVICE",
+                "deviceType": "TEXT_PHONE",
+                "owner": ownerID
+            };
+        }
+
+        device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.mobile_phone.getDisplayValue());
+
+        this.log.debug('syncDevice: Device: ' + deviceName + ': ' + (new global.JSON().encode(device)));
+        xmDevice.syncDevice(device);
+    },
+
+    /**
+     * Check if the user should be removed.
+     *
+     * The userRec arguments should only be used when dealing directly
+     * with the sys_user record, while the userRoleRec arguments should
+     * be used only when dealing directly with the sys_user_has_role
+     * record.
+     *
+     * @param userRec the "current" sys_user record
+     * @param userRec_prev the "previous" sys_user record
+     * @param userRoleRec the "current" sys_user_has_role record
+     * @param userRoleRec_prev the "previous" sys_user_has_role record
+     * @returns {boolean}
+     */
+    isRemoveRequired: function (userRec, userRec_prev, userRoleRec, userRoleRec_prev) {
+        this.log.debug('isRemoveRequired called');
+
+        if (userRec) {
+            this.log.debug('userRec.active.changesTo( false ): ' + userRec.active.changesTo(false) + '\n' +
+                'userRec.active.changesTo( "false" ): ' + userRec.active.changesTo('false'));
+
+            if (userRec.operation() == "delete" || userRec.active.changesTo(false)) {
+                this.log.debug('Deleteme!');
+                return true;
+            }
+
+        } else if (userRoleRec && userRoleRec.operation() == "delete") {
+            this.log.debug('Removing role "' + userRoleRec.role.name + '"');
+
+            // check to see if the user still has a syncable role
+            if (!this.hasRole(userRoleRec.user)) {
+                this.log.debug('Deleteme!');
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    /**
+     * remove a user specified by userRec
+     *
+     * @param userRec The sys_user record of the user to remove from xM.
+     */
+    removeUser: function (userRec) {
+        var path = this.APIVERSION + '/people/' + encodeURIComponent(userRec[this.userNameField]);
+
+        var opts = {
+            "method": "DELETE",
+            "path": path
+        };
+
+        this.log.debug('removeUser: opts: ' + (new global.JSON().encode(opts) ));
+
+        var dataHelper = new xMattersDataHelper();
+        dataHelper.sendRequestAsync(opts);
+    },
+
+    /**
+     * Check to see if this is a user we care about
+     *
+     * @param user the "current" sys_user record. Or the username to check.
+     * @param userRec_prev the "previous" sys_user record
+     * @param userRoleRec the "current" sys_user_has_role record
+     * @param userRoleRec_prev the "previous" sys_user_has_role record
+     * @returns {boolean}
+     */
+    isSyncableUser: function (user, userRec_prev, userRoleRec, userRoleRec_prev) {
+        var userRec = user;
+
+        // If a string is passed, then we'll help out and
+        // go get the user record.
+        if (typeof user == 'string') {
+            userRec = new GlideRecord('sys_user');
+            userRec.get('user_name', user);
+        }
+
+        if (userRec) {
+            if (this.hasRole(userRec.sys_id) && userRec.active) {
+                this.log.debug('Syncable! ' + userRec.user_name);
+                return true;
+            }
+
+        } else {
+            if (this.hasRole(userRoleRec.user)) {
+                this.log.debug('Syncable! ' + userRoleRec.user.user_name);
+                return true;
+            }
+        }
+
+        return false;
+    },
+
+    /**
+     * Check if user has a specified role
+     *
+     * @param userSys_ID  the sys_user iID of the user to check
+     * @param roles optional] - A string or an array of roles to check
+     * @returns {boolean} if the user has one of the roles specified
+     */
+    hasRole: function (userSys_ID, roles) {
+        // If roles is passed in...
+        if (roles) {
+            // And if it is not an array, then make it one
+            if (typeof roles != 'object') {
+                roles = roles.split(';');
+            }
+
+        } else { // Otherwise, get it from the user sync list
+            roles = gs.getProperty("x_xma_xmatters.xmatters.user.sync.roles.list");
+            roles = roles.split(';');
+        }
+
+
+        var userRole = new GlideRecord('sys_user_has_role');
+        userRole.addQuery('user', userSys_ID);
+        userRole.addQuery('role.name', 'IN', roles.join(','));
+        userRole.query();
+
+        return userRole.next();
+    },
+
+    /**
+     * getSite - Get the Site object from xM by name
+     *
+     * @param siteName The name of the site to retrieve
+     * @returns {*}
+     */
+    getSite: function (siteName) {
+        var path = this.APIVERSION + '/sites/' + encodeURIComponent(siteName);
+
+        var opts = {
+            "method": "GET",
+            "path": path
+        };
+        var dataHelper = new xMattersDataHelper();
+        var resp = dataHelper.sendRequest(opts);
+
+        // TODO: What should we do if we didn't
+        // get a 200?
+        if (resp.status != 200) {
+            this.log.error('Could not find site: ' + siteName);
+            return {};
+        }
+
+        var site = new global.JSON().decode(resp.body);
+        return site;
+    },
+
+
+    type: 'xMattersPerson'
+};
+]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2016-04-26 19:31:51</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>6188cd114f4312008472a88ca310c7dd</sys_id>
+        <sys_mod_count>19</sys_mod_count>
+        <sys_name>xMattersPerson</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_6188cd114f4312008472a88ca310c7dd</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-06-07 01:06:15</sys_updated_on>
+    </sys_script_include>
+</record_update>

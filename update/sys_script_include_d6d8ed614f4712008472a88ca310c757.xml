@@ -1,0 +1,558 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersGroup</api_name>
+        <client_callable>false</client_callable>
+        <description/>
+        <name>xMattersGroup</name>
+        <script><![CDATA[var xMattersGroup = Class.create();
+xMattersGroup.prototype = {
+	initialize: function() {
+		this.log = new xMattersLogger( gs.getProperty( "x_xma_xmatters.xmatters.logging.level"), 'xMattersGroup' );
+		
+		this.APIVERSION = '/api/xm/1';
+		this.ALLOWDUPLICATES	= true;
+		this.USEDEFAULTDEVICES	= true;
+		this.OBSERVEDBYALL		= true;
+		
+		this.SHIFTNAME = "ServiceNow Roster";
+		
+	},
+	
+	
+	/*
+	 *  syncGroupAsync - Insert/Update group in xMatters asynchronously (in the background)
+	 * 
+	 *  groupRec - The sys_user_group record to sync
+	 */
+	syncGroupAsync : function( groupRec ) {
+		
+		var worker = new GlideScriptedHierarchicalWorker();
+		worker.setProgressName( "x_xma_xmatters.xMattersGroup syncGroup: " + groupRec.name.getDisplayValue() );
+		
+		worker.setBackground( true );
+		worker.setScriptIncludeName( "x_xma_xmatters.xMattersGroup" );
+		worker.setScriptIncludeMethod( "syncGroup" );
+		worker.putMethodArg( "groupRec", groupRec );
+		
+		worker.start();
+		
+		return worker.getProgressID();
+	},
+
+	/*
+	 *  syncGroup - Insert/Update group in xMatters synchronously (in the current "ground")
+	 * 
+	 *  groupRec - The sys_user record to sync, or the username of the user to sync.
+	 */
+	syncGroup : function( groupRec ) {
+		
+		var xmperson = new xMattersPerson();
+		
+		var groupname = groupRec.name.getDisplayValue();
+		
+		// Get the group from xM
+		var xMGroup = this.getGroupFromxM( groupname );
+		
+		var found = ( xMGroup !== null );
+		
+		
+		var group = this.buildGroupObject( groupRec, xMGroup );
+		
+		var path = this.APIVERSION + '/groups/';
+		var dataHelper = new xMattersDataHelper();
+		
+		var opts = {
+			"path": path,
+			"method": 'POST',
+			"headers": {
+				"Content-type": "application/json"
+			},
+			"body":   group
+		};
+		
+		this.log.debug( 'syncGroup: opts: ' + (new global.JSON().encode( opts ) ) );
+		var resp = dataHelper.sendRequest( opts );
+		
+		if( resp.status != 200 && resp.status != 201 ) {
+			this.log.error( 'syncGroup ERROR: ' + (new global.JSON().encode( resp ) ) );
+			return null;
+		}
+		
+		xMGroup = (new global.JSON().decode( resp.body ) );
+		
+		var shift;
+		
+		// If it wasn't found, then add the group and shift
+		// We could collapse this, and make it less lines,
+		// but I think it is for sure fewer HTTP calls this way.
+		if( !found ) {
+			shift = this.addShift( groupname );
+		}
+		else {
+			shift = this.getShift( groupname );
+		}
+		
+		
+		// Loop through the member list and if each member is syncable, then
+		// add them to the shift
+		var member = new GlideRecord( 'sys_user' );
+		var groupMemberList = new GlideRecord( 'sys_user_grmember' );
+		groupMemberList.get( 'group', groupRec.sys_id );
+		
+		while( groupMemberList.next() ) {
+			
+			member = new GlideRecord( 'sys_user' );
+			member.get( groupMemberList.user );
+			
+			// Make an async call to sync the user
+			// and add them to the list
+			if( xmperson.isSyncableUser( member ) ) 
+				this.syncAndAddMemberAsync( member, groupname );
+			
+		}
+		
+	},
+	
+	
+	
+	/*
+ 	*  addShift - Adds a shift with the default name or
+ 	*    the one provided.
+ 	*
+ 	*  groupname - Group name or ID
+ 	*  shiftname - Shift name or ID
+ 	*
+ 	*/
+	addShift : function( groupname, shiftname ) {
+		
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupname ) + '/shifts';
+		var shift = {};
+		
+		if( shiftname )
+			shift.name = shiftname;
+		else
+			shift.name = this.SHIFTNAME;
+		
+		var opts = {
+			"method": "POST",
+			"path": path,
+			"headers": {
+				"Content-Type": "application/json"
+			},
+			"body": shift
+		};
+		
+		this.log.debug( 'addShift: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		var resp = dataHelper.sendRequest( opts );
+		
+		// If it already exists, then
+		// get the details
+		if( resp.status == 409 ) {
+			return this.getShift( shift.name );
+		}
+		
+		return new global.JSON().decode( resp.body );
+		
+	},
+	
+	/*
+ 	*  getShift - Gets the specified shift from the specified group
+ 	*
+ 	*  groupname - Group name or ID
+ 	*  shiftname - Shift name or ID
+ 	*
+ 	*/
+	getShift : function( groupname, shiftname ) {
+		
+		if( !shiftname )
+			shiftname = this.SHIFTNAME;
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupname ) + '/shifts/' + encodeURIComponent( shiftname );
+		var opts = {
+			"method": "GET",
+			"path": path
+		};
+		
+		
+		this.log.debug( 'getShift: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		var resp = dataHelper.sendRequest( opts );
+		
+		if( resp.status != 200 ) {
+			this.log.error( 'Could not find shift "' + shiftname + '" in group "' + groupname + '"' );
+			return {};
+		}
+		
+		return new global.JSON().decode( resp.body );
+		
+	},
+	
+	
+	/*
+ 	*  addMemberToShift - Adds the specified member to the shift. The recipientType is
+ 	*    an optional parameter to allow for adding devices or other groups to this shift.
+ 	*
+ 	*  groupname - The name or id of the group that has the shift
+ 	*  memberID - the id value of the PERSON, GROUP, or DEVICE to add to the shift
+ 	*  recipientType - [optional] Should be one of PERSON, GROUP, or DEVICE. Defaults to PERSON
+ 	*  shiftname - [optional] The name of the shift to add the member to. Defaults to this.SHIFTNAME
+ 	*/
+	addMemberToShift : function( groupname, memberID, recipientType, shiftname ) {
+		
+		
+		if( !shiftname )
+			shiftname = this.SHIFTNAME;
+		
+		if( !recipientType )
+			recipientType = 'PERSON';
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupname ) + '/shifts/' + encodeURIComponent( shiftname ) + '/members';
+		
+		var body = {
+			"recipient": {
+				"id": memberID,
+				"recipientType": recipientType
+			}
+		};
+		
+		var opts = {
+			"method": "POST",
+			"path": path,
+			"headers": {
+				"Content-Type": "application/json"
+			},
+			"body": body,
+		};
+		
+		this.log.debug( 'addMemberToShift: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		var resp = dataHelper.sendRequest( opts );
+		
+		// If we get a 404, then the shift wasn't
+		// found.
+		if( resp.status == 404 ) {
+			return 404;
+		}
+		
+		return new global.JSON().decode( resp.body );
+		
+	},
+	
+	
+	
+	/*
+ 	* syncAndAddMember - Sync a user and then add them to the group shift
+ 	*
+ 	*  userRec - The sys_user record to sync
+ 	*  groupname - The name of the group to add the member to
+ 	*  recipientType - The recipientType value to pass to addMemberToShift. addMemberToShift will default this to "PERSON"
+ 	*  shiftname - The name of the shift to add the user to. Will default to xMattersGroup.SHIFTNAME
+ 	*
+ 	*/
+	syncAndAddMember : function( userRec, groupname, recipientType, shiftname ) {
+		
+		// Sync the user and capture the Person object.
+		var xmperson = new xMattersPerson();
+		var xMMember = xmperson.syncUser( userRec );
+		
+		// If we successfully got a member, then add them to the shift
+		if( xMMember.id ) {
+			this.log.debug( 'Adding "' + xMMember.targetName + '" to ' + groupname );
+			this.addMemberToShift( groupname, xMMember.id, recipientType, shiftname );
+		}
+		
+	},
+	
+	/*
+ 	*  syncAndAddMemberAsync - Calls syncAndAddMember asynchronously.
+ 	*/
+	syncAndAddMemberAsync : function( userRec, groupname, recipientType, shiftname ) {
+		
+		var worker = new GlideScriptedHierarchicalWorker();
+		worker.setProgressName( "x_xma_xmatters.xMattersGroup.syncAndAddMember" );
+		
+		
+		worker.setBackground( true );
+		worker.setScriptIncludeName( "x_xma_xmatters.xMattersGroup" );
+		worker.setScriptIncludeMethod( "syncAndAddMember" );
+		worker.putMethodArg( "userRec",   userRec );
+		worker.putMethodArg( "groupname",   groupname );
+		
+		if( recipientType )
+			worker.putMethodArg( 'recipientType', recipientType );
+		
+		if( recipientType && shiftname )
+			worker.putMethodArg( 'shiftname', shiftname );
+		
+		worker.start();
+		
+		return worker.getProgressID();
+		
+	},
+	
+	
+	/*
+ 	*  removeMember - Removes a member from a group
+ 	*
+ 	*  groupname - the name of the group to remove from
+ 	*  memberID  - the id or targetName of the member to remove
+ 	*
+ 	*/
+	removeMember : function( groupname, memberID ) {
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupname ) + '/members/' + encodeURIComponent( memberID );
+		var opts = {
+			"method": "DELETE",
+			"path": path
+		};
+		
+		this.log.debug( 'removeMember: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		dataHelper.sendRequestAsync( opts );
+		
+	},
+	
+	
+	/*
+ 	*  buildGroupObject - Map the fields from the sys_user_group record to an xMatters
+ 	*       group object. If xMGroup is passed, it is used as a template
+ 	*       and values are overwritten with the values from the sys_user_group rec.
+ 	*
+ 	*  groupRec - The sys_user_group record representing the group to get info from
+ 	*  xMGroup - [optional] - the xMatters Group Object retrieved from xMatters
+ 	*/
+	buildGroupObject : function( groupRec, xMGroup ) {
+		this.log.debug( 'buildGroupObject: starting.... ' );
+		
+		var xmperson = new xMattersPerson();
+		
+		var group = {};
+		
+		if( xMGroup ) {
+			group = xMGroup;
+		}
+		
+		// We'll keep the site value from whatever it was in xM.
+		else {
+			group.site = xmperson.getSite( gs.getProperty( 'x_xma_xmatters.xmatters.sync.site' ) ).id;
+		}
+		
+		group.recipientType     = "GROUP";
+		group.status            = "ACTIVE";
+		group.allowDuplicates   = this.ALLOWDUPLICATES;
+		group.useDefaultDevices = this.USEDEFAULTDEVICES;
+		group.observedByAll     = this.OBSERVEDBYALL;
+		
+		
+		// Now deal with the supervisors
+		if( !group.supervisors ) {
+			group.supervisors = [];
+		}
+		
+		// First, we'll add the default group supervisor
+		var defaultSupervisor = xmperson.getPersonFromxM( gs.getProperty( 'x_xma_xmatters.xmatters.sync.supervisor' ) );
+		if( defaultSupervisor )
+			group.supervisors.push( defaultSupervisor.id );
+		
+		// Now, we'll try the group manager
+		// Ideally, we'd check if this user already had the Group Supervisor role,
+		// but the api does not return the roles from a user, so we'll check if they
+		// are syncable and just add it anyway.
+		
+		var mgr;
+		var mgrRec = new GlideRecord( 'sys_user' );
+		mgrRec.get( 'user_name', groupRec.manager.user_name.getDisplayValue() );
+		
+		if( xmperson.isSyncableUser( mgrRec ) ) {
+			this.log.debug( 'buildGroupObject: Group manager "' + mgrRec.user_name + '" isSyncableUser: true. Syncing with Group Supervisor role' );
+			mgr = xmperson.syncUser( mgrRec, { "roles": ["Group Supervisor"] } );
+			
+			group.supervisors.push( mgr.id );
+		}
+		
+		group.description = groupRec.description.getDisplayValue();
+		group.targetName  = groupRec.name.getDisplayValue();
+		
+		return group;
+	},
+	
+	
+	/*
+ 	*  getGroupFromxM - Gets the group from xMatters and returns the Group Object
+ 	*
+ 	*  groupname - the id or targetName of the group to retrieve
+ 	*/
+	getGroupFromxM : function( groupname ) {
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupname );
+		
+		
+		var opts = {
+			"method": "GET",
+			"path": path
+		};
+		
+		this.log.debug( 'getGroupFromxM: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		var resp = dataHelper.sendRequest( opts );
+		
+		// TODO: What should we do if we didn't
+		// get a 200?
+		if( resp.status != 200 )
+			return null;
+		
+		var group = new global.JSON().decode( resp.body );
+		return group;
+		
+	},
+	
+	
+	/*
+ 	*  isSyncableGroup - Check to see if this is a group we care about
+ 	*
+ 	*  groupRec - the "current" sys_user_group record
+ 	*  groupRec_prev - the "previous" sys_user_group record
+ 	*  groupRoleRec - the "current" sys_group_has_role record
+ 	*  groupRoleRec_prev - the "previous" sys_group_has_role record
+ 	*/
+	isSyncableGroup : function( groupRec, groupRec_prev, groupRoleRec, groupRoleRec_prev ) {
+		this.log.debug( 'isSyncableGroup called' );
+		if( groupRec ) {
+			
+			if( this.hasRole( groupRec.sys_id ) && groupRec.active ) {
+				this.log.debug( 'Syncable! ' + groupRec.name );
+				return true;
+			}
+		}
+		
+		else {
+			if( this.hasRole( groupRoleRec.group ) ) {
+				this.log.debug( 'Syncable! ' + groupRoleRec.group.name );
+				return true;
+			}
+		}
+	},
+	
+	/*
+ 	* isRemoveRequired - Check if the group should be removed. the groupRec
+ 	*   arguments should only be used when dealing directly with the sys_user_group
+ 	*   record, while the groupRoleRec arguments should be used only when
+ 	*   dealing directly with the sys_group_has_role record.
+ 	*
+ 	*  groupRec - the "current" sys_user_group record
+ 	*  groupRec_prev - the "previous" sys_user_group record
+ 	*  groupRoleRec - the "current" sys_group_has_role record
+ 	*  groupRoleRec_prev - the "previous" sys_group_has_role record
+ 	*/
+	isRemoveRequired : function( groupRec, groupRec_prev, groupRoleRec, groupRoleRec_prev ) {
+		
+		
+		this.log.debug( 'isRemoveRequired called' );
+		
+		if( groupRec ) {
+			this.log.debug( 'groupRec.active.changesTo( false ): ' + groupRec.active.changesTo( false ) );
+			
+			if( groupRec.operation() == "delete" || groupRec.active.changesTo( false ) ) {
+				this.log.debug( 'Deleteme!' );
+				return true;
+			}
+			
+			
+		}
+		else if( groupRoleRec && groupRoleRec.operation() == "delete" ) {
+			
+			this.log.debug( 'Removing role "' + groupRoleRec.role.name + '"' );
+			if( !this.hasRole( groupRoleRec.group ) ) {
+				this.log.debug( 'Deleteme!' );
+				return true;
+			}
+			
+		}
+		
+		return false;
+	},
+	
+	
+	/*
+	 *  removeGroup - Remove a group from xMatters
+	 *
+	 *  groupRec - The sys_user_group record of the group to remove from xM. 
+	 *
+	 */
+	removeGroup : function( groupRec ) {
+		
+		var path = this.APIVERSION + '/groups/' + encodeURIComponent( groupRec.name );
+		
+		
+		var opts = {
+			"method": "DELETE",
+			"path": path
+		};
+		
+		this.log.debug( 'removeGroup: opts: ' + (new global.JSON().encode( opts ) ) );
+		
+		var dataHelper = new xMattersDataHelper();
+		dataHelper.sendRequestAsync( opts );
+		
+	},
+	/*
+ 	*  hasRole - Returns true or false if the group passed in has
+ 	*    one of the roles specified in the "xmatters.user.sync.group.roles.list".
+ 	*    Or, a list of roles can be passed in to check.
+ 	*
+ 	*  userRec - the sys_user record of the user to check
+ 	*  roles [optional] - A string or an array of roles to check. The string
+ 	*     should be ; delimited
+ 	*/
+	hasRole : function( groupSys_ID, roles ) {
+		
+		// If roles is passed in...
+		if( roles ) {
+			// And if it is not an array, then make it one
+			if( typeof roles != 'object' )
+				roles = roles.split( ';' );
+		}
+		
+		// Otherwise, get it from the user sync list
+		else {
+			roles = gs.getProperty("x_xma_xmatters.xmatters.user.sync.group.roles.list");
+			roles = roles.split( ';' );
+		}
+		
+		
+		var userRole = new GlideRecord( 'sys_group_has_role' );
+		userRole.addQuery( 'group', groupSys_ID );
+		userRole.addQuery( 'role.name', 'IN', roles.join(',') );
+		userRole.query();
+		
+		return userRole.next();
+	},
+	
+	type: 'xMattersGroup'
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2016-04-27 16:18:01</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>d6d8ed614f4712008472a88ca310c757</sys_id>
+        <sys_mod_count>30</sys_mod_count>
+        <sys_name>xMattersGroup</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_d6d8ed614f4712008472a88ca310c757</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-05-08 15:23:09</sys_updated_on>
+    </sys_script_include>
+</record_update>

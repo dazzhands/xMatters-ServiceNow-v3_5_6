@@ -29,7 +29,7 @@ if ( !gs.nil( event.parm1 ) && !gs.nil( event.parm2 ) &&
         <sys_class_name>sysevent_script_action</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2016-01-20 18:29:27</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>ac3bddca4f851e008472a88ca310c7e1</sys_id>

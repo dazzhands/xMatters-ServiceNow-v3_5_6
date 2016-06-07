@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <record_update table="sys_soap_message">
     <sys_soap_message action="INSERT_OR_UPDATE">
-        <access>public</access>
+        <access/>
         <authentication_type/>
         <basic_auth_password/>
         <basic_auth_profile/>
@@ -14,19 +14,19 @@
         <sys_class_name>sys_soap_message</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 19:12:45</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>4958f08b7b02f1008e0b707d784d4dc7</sys_id>
-        <sys_mod_count>6</sys_mod_count>
+        <sys_mod_count>5</sys_mod_count>
         <sys_name>xMatters AlarmPoint Engine</sys_name>
-        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_soap_message_4958f08b7b02f1008e0b707d784d4dc7</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-05-26 18:46:32</sys_updated_on>
+        <sys_updated_on>2015-02-09 19:34:24</sys_updated_on>
         <use_basic_auth>false</use_basic_auth>
-        <wsdl>https://integrations.cs1.xmatters.com/api/services/AlarmPointWebService?wsdl</wsdl>
+        <wsdl>https://company.dc.xmatters.com/api/services/AlarmPointWebService?wsdl</wsdl>
         <wsdl_xml><![CDATA[<?xml version="1.0" encoding="UTF-8"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:ns1="http://org.apache.axis2/xsd" xmlns:ns="http://www.alarmpoint.com/webservices/schema" xmlns:wsaw="http://www.w3.org/2006/05/addressing/wsdl" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" targetNamespace="http://www.alarmpoint.com/webservices/schema">
     <wsdl:documentation>AlarmPointWebService</wsdl:documentation>
     <wsdl:types>

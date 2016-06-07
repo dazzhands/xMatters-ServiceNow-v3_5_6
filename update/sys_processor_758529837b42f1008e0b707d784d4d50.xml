@@ -15,160 +15,156 @@
         <script><![CDATA[gs.include("xMattersLogger");
 
 var appPrefix = gs.getCurrentScopeName();
-var log = new xMattersLogger(gs.getProperty( appPrefix + '.' + 'xmatters.logging.level'), 'xMattersRESTProcessor' );
+var log = new xMattersLogger(gs.getProperty(appPrefix + '.' + 'xmatters.logging.level'), 'xMattersRESTProcessor');
 
 /*
  * Get the inbound REST 'mode'
  * The mode determines what type of rest callback we are dealing with
  */
-try
-{
-  //var urlParamList = g_request.getParameterNames();
-  var errorMessage = "";  
-  var inboundMode = g_request.getParameter( 'mode' );
-  log.debug( 'inboundMode: ' + inboundMode );
-  
-  /*
-  * Use ServiceNow libraries to covert the JSON string to an object
-  */
-  var parser = new global.JSON();
-  var response = buildResponse( g_request.getParameterNames() );
-  log.debug( 'response: ' + parser.encode( response ) );
-  
-  
-  // Get the incident id
-  var eventProperties = response.eventProperties;
-  var inc_sys_id = "";
-  
-  for(var key in eventProperties) {
-    if (eventProperties[key].incident_id != null)
-      inc_sys_id = eventProperties[key].incident_id;
-  }
-  
-  log.debug( 'Incident SysID: ' + inc_sys_id );
-  
-  
-  if (inc_sys_id == "" || inc_sys_id == null) {
-    log.error("xMattersRESTProcessor: ERROR the inbound REST callback did not contain the incident_id");
-    errorMessage = '{\n' +
-    'type":"INCIDENT_ID_NOT_FOUND",\n' +
-    'message": "xMattersRESTProcessor the inbound REST callback did not contain the incident_id"\n' +
-    '}';
-  }
-  else
-    {
-    
-    log.debug("Recieved inbound " + inboundMode + " REST callback with xM with sys_id " + inc_sys_id);
-    
-    
-    // Initialize the temporary table and the
-    // u_xmatters transform map will take care
-    // of the update
-    var incidentRec = new GlideRecord( appPrefix + '_' + 'xmatters_incident');
-    incidentRec.initialize();
-    incidentRec.incident_sys_id = inc_sys_id;
-    
-    /*
-    * Process the inbound mode to deterine how to handle the REST callback.
-    */
-    if (inboundMode == "status") {
-      
-      incidentRec.work_notes = "[xMatters] - xM event ID " + response.eventIdentifier + " has an updated status of " + response.status + " date " + response.date + "";
-      
-      // update the incident
-      incidentRec.update();
-    } else if (inboundMode == "deliveryStatus")
-    {
-      // set the impersontate to the default user from the xMatters config
-      //doImpersonate(gs.getProperty("xmatters.api.user"));
-      
-      incidentRec.work_notes = "[xMatters] - xM event ID " + response.eventIdentifier + " has a delivery status of " + response.deliveryStatus + " for recipient " + response.recipient + "(" + response.device + ") at " + response.date;
-      
-      // update the incident
-      incidentRec.update();
-    } else if (inboundMode == "response")
-    {
-      
-      // Handle the different types of responses
-      // If you add a new response in the xM REB you will need to update this section
-      if (response.response == "Assign to me" || response.response == "Accept" ) {
-        incidentRec.assigned_to = response.recipient;
-        incidentRec.incident_state = "2";
-      } else if (response.response == "Resolve") {
-        incidentRec.assigned_to = response.recipient;
-        incidentRec.incident_state = "6";
-      }
-      
-      
-      var notes = "[xMatters] - Received Response " + response.response;
-      
-      if ( !gs.nil( response.annotation ) && response.annotation != 'null' ) {
-        notes += " - '" + response.annotation + "'"; 
-      }
-      
-      notes += " by " + response.recipient + "(" + response.device + ") at " + response.date + "";
-          
-      incidentRec.work_notes = notes;
-      
-      // update the incident
-      incidentRec.update();
+try {
+    //var urlParamList = g_request.getParameterNames();
+    var errorMessage = "";
+    var inboundMode = g_request.getParameter('mode');
+    log.debug('inboundMode: ' + inboundMode);
 
-    } else {
-      log.error("xMattersRESTProcessor: ERROR the inbound REST callback 'mode' did not match expected values");
-      errorMessage = '{\n' +
-      'type":"MODE_DID_NOT_MATCH_EXPECTED_VALUE",\n' +
-      'message": "xMattersRESTProcessor the inbound REST callback mode did not match expected values"\n' +
-      '}';
+    /*
+     * Use ServiceNow libraries to covert the JSON string to an object
+     */
+    var parser = new global.JSON();
+    var response = buildResponse(g_request.getParameterNames());
+    log.debug('response: ' + parser.encode(response));
+
+
+    // Get the incident id
+    var eventProperties = response.eventProperties;
+    var inc_sys_id = "";
+
+    for (var key in eventProperties) {
+        if (eventProperties[key].incident_id != null)
+            inc_sys_id = eventProperties[key].incident_id;
     }
-  }
-  
-  /*
-  * If we want to send information back to the client, we can
-  * do so through the writeOutput function on the processor
-  */
-  if (errorMessage != "") {
-    // REMOVED in Calgary Release
-    // xM does not currently handle error's in callbacks xMod 5.47
+
+    log.debug('Incident SysID: ' + inc_sys_id);
+
+
+    if (inc_sys_id == "" || inc_sys_id == null) {
+        log.error("xMattersRESTProcessor: ERROR the inbound REST callback did not contain the incident_id");
+        errorMessage = '{\n' +
+            'type":"INCIDENT_ID_NOT_FOUND",\n' +
+            'message": "xMattersRESTProcessor the inbound REST callback did not contain the incident_id"\n' +
+            '}';
+    }
+    else {
+
+        log.debug("Recieved inbound " + inboundMode + " REST callback with xM with sys_id " + inc_sys_id);
+
+
+        // Initialize the temporary table and the
+        // u_xmatters transform map will take care
+        // of the update
+        var incidentRec = new GlideRecord(appPrefix + '_' + 'xmatters_incident');
+        incidentRec.initialize();
+        incidentRec.incident_sys_id = inc_sys_id;
+
+        /*
+         * Process the inbound mode to deterine how to handle the REST callback.
+         */
+        if (inboundMode == "status") {
+
+            incidentRec.work_notes = "[xMatters] - xM event ID " + response.eventIdentifier + " has an updated status of " + response.status + " date " + response.date + "";
+
+            // update the incident
+            incidentRec.update();
+        } else if (inboundMode == "deliveryStatus") {
+            // set the impersontate to the default user from the xMatters config
+            //doImpersonate(gs.getProperty("xmatters.api.user"));
+
+            incidentRec.work_notes = "[xMatters] - xM event ID " + response.eventIdentifier + " has a delivery status of " + response.deliveryStatus + " for recipient " + response.recipient + "(" + response.device + ") at " + response.date;
+
+            // update the incident
+            incidentRec.update();
+        } else if (inboundMode == "response") {
+
+            // Handle the different types of responses
+            // If you add a new response in the xM REB you will need to update this section
+            if (response.response == "Assign to me" || response.response == "Accept") {
+                incidentRec.assigned_to = response.recipient;
+                incidentRec.incident_state = "2";
+            } else if (response.response == "Resolve") {
+                incidentRec.assigned_to = response.recipient;
+                incidentRec.incident_state = "6";
+            }
+
+
+            var notes = "[xMatters] - Received Response " + response.response;
+
+            if (!gs.nil(response.annotation) && response.annotation != 'null') {
+                notes += " - '" + response.annotation + "'";
+            }
+
+            notes += " by " + response.recipient + "(" + response.device + ") at " + response.date + "";
+
+            incidentRec.work_notes = notes;
+
+            // update the incident
+            incidentRec.update();
+
+        } else {
+            log.error("xMattersRESTProcessor: ERROR the inbound REST callback 'mode' did not match expected values");
+            errorMessage = '{\n' +
+                'type":"MODE_DID_NOT_MATCH_EXPECTED_VALUE",\n' +
+                'message": "xMattersRESTProcessor the inbound REST callback mode did not match expected values"\n' +
+                '}';
+        }
+    }
+
+    /*
+     * If we want to send information back to the client, we can
+     * do so through the writeOutput function on the processor
+     */
+    if (errorMessage != "") {
+        // REMOVED in Calgary Release
+        // xM does not currently handle error's in callbacks xMod 5.47
+        //g_response.setHeader("Content-Type", "application/json");
+        //g_response.setStatus(400);
+        g_response.setHeader("Content-Type", "application/json");
+        g_processor.writeOutput(errorMessage);
+    } else {
+        g_response.setHeader("Content-Type", "text/plain");
+        g_processor.writeOutput("OK");
+    }
+} catch (e) {
     //g_response.setHeader("Content-Type", "application/json");
     //g_response.setStatus(400);
-    g_response.setHeader("Content-Type", "application/json");
-    g_processor.writeOutput(errorMessage);
-  } else {
-    g_response.setHeader("Content-Type", "text/plain");
-    g_processor.writeOutput("OK");
-  }
-} catch (e) {
-  //g_response.setHeader("Content-Type", "application/json");
-  //g_response.setStatus(400);
-  g_processor.writeOutput(e.message);
-  log.error( 'Error: ' + e.message );
+    g_processor.writeOutput(e.message);
+    log.error('Error: ' + e.message);
 }
 
-function buildResponse( names ) {
-  var obj = {};
-  var str = '';
-  for( var i in names ) {
-    str += '  buildResponse: ' + i + ': ' + names[i] + '\n';
-    obj[ names[i] ] = g_request.getParameter( names[i] );  
-  }
-  
-  log.debug( str );
-  return obj;
+function buildResponse(names) {
+    var obj = {};
+    var str = '';
+    for (var i in names) {
+        str += '  buildResponse: ' + i + ': ' + names[i] + '\n';
+        obj[names[i]] = g_request.getParameter(names[i]);
+    }
+
+    log.debug(str);
+    return obj;
 }]]></script>
         <sys_class_name>sys_processor</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 22:29:18</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>758529837b42f1008e0b707d784d4d50</sys_id>
-        <sys_mod_count>27</sys_mod_count>
+        <sys_mod_count>28</sys_mod_count>
         <sys_name>xMattersRESTProcessor</sys_name>
-        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_processor_758529837b42f1008e0b707d784d4d50</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-09-30 21:33:29</sys_updated_on>
+        <sys_updated_on>2016-06-07 01:01:20</sys_updated_on>
         <type>script</type>
     </sys_processor>
 </record_update>
