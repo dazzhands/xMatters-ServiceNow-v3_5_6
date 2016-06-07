@@ -13,7 +13,7 @@
         <change_fields>false</change_fields>
         <client_callable>false</client_callable>
         <collection>sys_user_has_role</collection>
-        <condition>new xMattersPerson().isSyncableUser( null, null, current, previous ) || new xMattersPerson().isRemoveRequired( null, null, current, previous )</condition>
+        <condition/>
         <description/>
         <execute_function>true</execute_function>
         <filter_condition/>
@@ -29,21 +29,135 @@
         <rest_variables/>
         <role_conditions/>
         <script><![CDATA[function onAfter(current, previous) {
-    var userRec = new GlideRecord('sys_user');
-    userRec.addQuery('sys_id', current.user);
-    userRec.query();
-
-    if (!userRec.next()) {
-        return;
+    
+  gs.include("xMattersLogger");
+  gs.include("xMattersUserSync");
+  
+  var appPrefix = gs.getCurrentScopeName();
+  
+  // Initialize the SOAP Helper and Logger objects
+  var userSync = new xMattersUserSync();
+  var log = new xMattersLogger(gs.getProperty(appPrefix + '.' + "xmatters.logging.level"));
+  var seedOnly = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.seed.only").toLowerCase() == "true";
+  
+  
+  if(gs.getProperty(appPrefix + '.' + "xmatters.sync.dynamically") == "true") {
+    log.debug("xMatters User Role Sync Business Rule " + current.sys_id );
+    log.debug("Trigger rule = '" + current.operation() + "' for Role '" + current.role.name + "'" +
+    "User of role to be Sync'd = " + current.user.user_name );
+    
+    if(checkRoles(current)) {  
+        
+      // With the new quota rules, we have to make these calls in the background,
+      // so moving this to the worker
+      
+      if (current.operation() == "delete" && noLongerhasRole( current )  ) {  //
+        // Delete the user from xMatters
+        // userSync.syncUser(current.user, current.user.user_name, "DeleteUser");
+      
+        worker = new GlideScriptedHierarchicalWorker();
+        // This is the name of the worker in the sys_progress_worker table.
+        worker.setProgressName("User Sync Worker");
+        
+        // Instantiate the ScriptInclude and indicate which method to fire
+        // The parameters are passed in order, not by name, so the first
+        // value of that putMethodArg is not used.
+        worker.setScriptIncludeName( appPrefix + '.' + "xMattersUserSync");
+        worker.setScriptIncludeMethod( "syncUser" );
+        worker.putMethodArg("record", current.user );
+        worker.putMethodArg("userName", current.user.user_name.toString() );
+        worker.putMethodArg("triggerRule", "DeleteUser" );
+        
+        worker.setBackground(true);
+        worker.start();      
+      } else {
+        // The xMattersUserSync.syncUsers function will also take care of sync'ing the devices.
+        worker = new GlideScriptedHierarchicalWorker();
+        // This is the name of the worker in the sys_progress_worker table.
+        worker.setProgressName("User Sync Worker");
+        
+        // Instantiate the ScriptInclude and indicate which method to fire
+        // The parameters are passed in order, not by name, so the first
+        // value of that putMethodArg is not used.
+        worker.setScriptIncludeName( appPrefix + '.' + "xMattersUserSync");
+        worker.setScriptIncludeMethod( "syncUserAndDevices" );
+        worker.putMethodArg("record", current.user );
+        worker.putMethodArg("userName", current.user.user_name.toString() );
+        worker.putMethodArg("triggerRule", "UpdateUser" );
+        
+        worker.setBackground(true);
+        worker.start();        
+      }
+    } else {
+      log.debug("Users devices will not be synchronized as the user was not synchronized");
     }
-
-    var xmperson = new xMattersPerson();
-    if (xmperson.isSyncableUser(null, null, current, previous)) {
-        xmperson.syncUserAsync(userRec);
-
-    } else if (xmperson.isRemoveRequired(null, null, current, previous)) {
-        xmperson.removeUser(userRec);
+  } else {
+    log.debug("User will not be synchronized as the 'Dynamic Sync' property is turned off");
+  }
+  
+  /**
+   * HELPER METHODS
+   */
+  
+  /**
+   * Find out of the user should be synchronized
+   * @param current glide record
+   **/
+  function checkRoles(current) {
+      
+    var roleExclude = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.exclude.roles.list.boolean");
+    var roleFilterList = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.roles.list");
+    var roles = roleFilterList.split(";");
+    var foundRole = false;
+    
+    // Check if the role is on the list
+    for (var j=0; j<roles.length; j++) {
+      if(current.role == roles[j] || current.role.name == roles[j]) {
+        foundRole = true;
+        break;
+      }
     }
+    
+    if (roleExclude == "true" && !foundRole) {
+      log.debug("The Role " + current.role.name + " change for User " + current.user.user_name + " will be synchronized as the role is not on the role exclude list");
+      return true;
+    } else if (roleExclude == "false" && foundRole) {
+      log.debug("The Role " + current.role.name + " change for User " + current.user.user_name + " will be synchronized as the role is on the role include list");
+      return true;
+    } else if (roleExclude == "true" && foundRole) {
+      log.debug("The Role " + current.role.name + " change for User " + current.user.user_name + " will not be synchronized as the role is on the role exclude list");
+      return false;
+    } else if (roleExclude == "false" && !foundRole) {
+      log.debug("The Role " + current.role.name + " change for User " + current.user.user_name + " will not be synchronized as the role is not on the role include list");
+      return false;
+    }
+    return false;
+  }
+  
+  /*
+   * We need to check if this user has been granted a role
+   *  possibly through other means before we actually delete them
+   *  from xMatters
+   */
+  function noLongerhasRole(record){
+    var roleExclude = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.exclude.roles.list.boolean");
+    var roleFilterList = gs.getProperty(appPrefix + '.' + "xmatters.user.sync.roles.list");
+    var roles = roleFilterList.split(";");
+    var queryStr = 'user=' + current.user;
+    for (var i=0; i< roles.length; i++) {
+      if(i==0) { 
+        queryStr += '^role.name=' + roles[i]; 
+      } else { 
+        queryStr += '^ORrole.name=' + roles[i]; 
+      }
+    }
+    var gr = new GlideRecord("sys_user_has_role");
+
+    gr.addEncodedQuery(queryStr);
+    gr.query();
+
+    return !gr.next();
+  }  
 }]]></script>
         <sys_class_name>sys_script</sys_class_name>
         <sys_created_by>admin</sys_created_by>
@@ -52,7 +166,7 @@
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>7b4c1e074fb4c2008472a88ca310c7d6</sys_id>
-        <sys_mod_count>8</sys_mod_count>
+        <sys_mod_count>4</sys_mod_count>
         <sys_name>xMatters User Role Sync</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
@@ -61,7 +175,7 @@
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_7b4c1e074fb4c2008472a88ca310c7d6</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 00:58:15</sys_updated_on>
+        <sys_updated_on>2015-10-01 23:25:26</sys_updated_on>
         <template/>
         <when>after</when>
     </sys_script>

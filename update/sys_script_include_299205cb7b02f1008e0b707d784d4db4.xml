@@ -44,8 +44,8 @@ xMattersIncident.prototype = {
     
     // create the final work notes if the notes array has items to be added to the work notes
     if (notes.length > 0) {
-      record.work_notes = notes.join("\n");
-      record.update();
+      current.work_notes = notes.join("\n");
+      current.update();
     }
   },
 	
@@ -69,8 +69,8 @@ xMattersIncident.prototype = {
     var endpoint = gs.getProperty(this.appPrefix + '.' + "xmatters.reb.incident.endpoint");
         
     var inboundProcessor    = this.appPrefix + '_' + 'xMattersRESTProcessor.do';
-    var emitStatus          = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.status.updates' );
-    var emitdDeliveryStatus = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.delivery.status.updates' );
+    var emitStatus          = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.status.updates' ) == 'true';
+    var emitdDeliveryStatus = gs.getProperty( this.appPrefix + '.' + 'xmatters.event.delivery.status.updates' ) == 'true';
     var emitResponse        = "true";
     
     var callbacks = this.restHelper.callbackHelper( inboundProcessor, emitStatus, emitdDeliveryStatus, emitResponse );
@@ -215,7 +215,7 @@ xMattersIncident.prototype = {
         <sys_created_on>2015-02-09 19:56:27</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>299205cb7b02f1008e0b707d784d4db4</sys_id>
-        <sys_mod_count>20</sys_mod_count>
+        <sys_mod_count>18</sys_mod_count>
         <sys_name>xMattersIncident</sys_name>
         <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
@@ -223,6 +223,6 @@ xMattersIncident.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_299205cb7b02f1008e0b707d784d4db4</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-04-07 22:56:48</sys_updated_on>
+        <sys_updated_on>2015-09-30 21:30:11</sys_updated_on>
     </sys_script_include>
 </record_update>

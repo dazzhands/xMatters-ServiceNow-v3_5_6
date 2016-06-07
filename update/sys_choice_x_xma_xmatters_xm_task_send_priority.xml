@@ -65,8 +65,8 @@
             <sys_created_by>admin</sys_created_by>
             <sys_created_on>2015-03-02 07:26:07</sys_created_on>
             <sys_customer_update>false</sys_customer_update>
-            <sys_id>8d201485dbb312009a0255d0cf96198c</sys_id>
-            <sys_mod_count>47</sys_mod_count>
+            <sys_id>bea4f87adb3312009a0255d0cf96199c</sys_id>
+            <sys_mod_count>35</sys_mod_count>
             <sys_name>send_priority</sys_name>
             <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
             <sys_policy/>
@@ -74,7 +74,7 @@
             <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
             <sys_update_name>sys_choice_x_xma_xmatters_xm_task_send_priority</sys_update_name>
             <sys_updated_by>admin</sys_updated_by>
-            <sys_updated_on>2016-06-03 01:42:26</sys_updated_on>
+            <sys_updated_on>2015-09-30 22:00:00</sys_updated_on>
         </sys_choice_set>
     </sys_choice>
 </record_update>

@@ -28,7 +28,7 @@ xMRecipientSelectAjax.prototype = Object.extendsObject( global.AbstractAjaxProce
 			item.setAttribute('text', list[i] + ' (G)' );
 			item.setAttribute( 'itemType', 'group' );
 			
-			//str.concat( 'item[' + i + ']: ' + list[i] + '\n' );
+			str += 'item[' + i + ']: ' + list[i] + '\n';
 		}
 		
 		// This can cause performance issues if
@@ -40,7 +40,7 @@ xMRecipientSelectAjax.prototype = Object.extendsObject( global.AbstractAjaxProce
 			item.setAttribute('value', list[k] );
 			item.setAttribute('text', list[k] + ' (U)' );
 			item.setAttribute('itemType', 'user' );
-			//str.concat( 'item[' + k + ']: ' + list[k] + '\n' );
+			str += 'item[' + k + ']: ' + list[k] + '\n';
 		}
 		
 	}
@@ -51,7 +51,7 @@ xMRecipientSelectAjax.prototype = Object.extendsObject( global.AbstractAjaxProce
         <sys_created_on>2015-02-09 19:58:15</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>a3f205cb7b02f1008e0b707d784d4dff</sys_id>
-        <sys_mod_count>16</sys_mod_count>
+        <sys_mod_count>14</sys_mod_count>
         <sys_name>xMRecipientSelectAjax</sys_name>
         <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
@@ -59,6 +59,6 @@ xMRecipientSelectAjax.prototype = Object.extendsObject( global.AbstractAjaxProce
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_a3f205cb7b02f1008e0b707d784d4dff</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-10-21 20:54:25</sys_updated_on>
+        <sys_updated_on>2015-09-29 17:22:06</sys_updated_on>
     </sys_script_include>
 </record_update>

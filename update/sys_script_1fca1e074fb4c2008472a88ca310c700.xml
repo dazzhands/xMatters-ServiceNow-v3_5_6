@@ -13,7 +13,7 @@
         <change_fields>false</change_fields>
         <client_callable>false</client_callable>
         <collection>sys_user_group</collection>
-        <condition>new xMattersGroup().isSyncableGroup( current, previous ) || new xMattersGroup().isRemoveRequired( current, previous )</condition>
+        <condition/>
         <description/>
         <execute_function>true</execute_function>
         <filter_condition/>
@@ -28,24 +28,57 @@
         <rest_service_text/>
         <rest_variables/>
         <role_conditions/>
-        <script><![CDATA[function onAfter( current, previous ) {
-	
-	var log = new xMattersLogger( gs.getProperty( 'x_xma_xmatters.xmatters.logging.level' ), 'xMatters Group Sync BR' );
-	
-	
-	var xmgroup = new xMattersGroup();
-	if( xmgroup.isSyncableGroup( current, previous ) ) {
-		
-		log.debug( 'Syncing ' + current.name );
-		xmgroup.syncGroupAsync( current );
-	}
-	else if( xmgroup.isRemoveRequired( current, previous ) ){
-		
-		log.debug( 'Removing ' + current.name );
-		xmgroup.removeGroup( current );		
-	}
-}
-]]></script>
+        <script><![CDATA[function onAfter(current, previous) {
+  //This function will be automatically called when this rule is processed.
+  gs.include("xMattersLogger");
+  gs.include("xMattersGroupSync");
+  gs.include("xMattersGroupMemberSync");
+  
+  appPrefix = gs.getCurrentScopeName();
+  
+  var log = new xMattersLogger(gs.getProperty(appPrefix + '.' + "xmatters.logging.level"));
+  var groupSync = new xMattersGroupSync();
+  var memberSync = new xMattersGroupMemberSync();
+  var response = null;
+  
+  if ( gs.getProperty( appPrefix + '.' + "xmatters.sync.dynamically") == "true") {
+    
+    if (current.operation() == "update") {
+      log.debug("Business rule to update group "+previous.name+" in xMatters");
+      response = groupSync.syncGroup(current, previous.name, "UpdateGroup");
+      
+      log.debug("Business rule to update group. syncGroup response: " + response);
+      
+      if (!(''+response).startsWith("Group not synchronized")) {
+        log.debug("Syncing Group Members");
+        // Takes about 800 ms, so it's better do it asynchronously  
+        //memberSync.syncMembership(current.name.toString());
+        
+        worker = new GlideScriptedHierarchicalWorker();
+        worker.setProgressName("Group Member Sync Worker");
+        worker.setBackground( true );
+        // specify a script include and method to call, with whatever parameters you need
+        worker.setScriptIncludeName( appPrefix + '.' + "xMattersGroupMemberSync");
+        worker.setScriptIncludeMethod( "syncMembership" );
+        worker.putMethodArg("groupName", current.name.toString());
+        
+        worker.start(); 
+      }
+    } else if (current.operation() == "insert") {
+      log.debug("Business rule to add group "+current.name+" to xMatters");
+      response = groupSync.syncGroup(current, current.name, "AddGroup");
+      log.debug(response);
+    } else if (current.operation() == "delete") {
+      log.debug("Business rule to delete group "+current.name+" from xMatters");
+      response = groupSync.syncGroup(current, current.name, "DeleteGroup");
+      log.debug(response);
+    } else {
+      log.error("Business Rule 'xMatters Group Sync' ran during operation = "+current.operation()+". This should be considered an error.");
+    }
+  } else {
+    log.debug("Group will not be synchronized as the 'Dynamic Sync' property is turned off");
+  }
+}]]></script>
         <sys_class_name>sys_script</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-06-26 19:15:09</sys_created_on>
@@ -53,7 +86,7 @@
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>1fca1e074fb4c2008472a88ca310c700</sys_id>
-        <sys_mod_count>3</sys_mod_count>
+        <sys_mod_count>2</sys_mod_count>
         <sys_name>xMatters Group Sync</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
@@ -62,7 +95,7 @@
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_1fca1e074fb4c2008472a88ca310c700</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-04-29 19:27:19</sys_updated_on>
+        <sys_updated_on>2015-09-24 18:17:03</sys_updated_on>
         <template/>
         <when>after</when>
     </sys_script>
