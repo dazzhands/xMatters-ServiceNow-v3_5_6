@@ -155,7 +155,36 @@ xMattersGroupMemberSync.prototype = {
     }
     return false;
   },
-  
+	
+  /**
+   * Determine if any new members need to be syncd to xMatters
+   * @param {?Object} team containing members already present in xMatters
+   * @returns {number} number of users syncd to xMatters
+   */
+  attemptUserSync: function (team) {
+    team = team || { members: [] };
+	this.log.debug("attemptUserSync: Check and sync users if necessary");
+	  
+	var newTeamMembers = this.soapHelper.getNewTeamMembers(this.snMembers, team.members);
+	if (newTeamMembers.length) {
+		this.log.debug("attemptUserSync: Will sync " + newTeamMembers.length + " users before adding to team");
+
+		worker = new GlideScriptedHierarchicalWorker();
+		worker.setProgressName("User Sync Worker");
+		worker.setBackground( false );  // this needs to complete before moving on....
+		worker.setScriptIncludeName( this.appPrefix + '.' + "xMattersUserSync");
+		worker.setScriptIncludeMethod( "syncUsers" );
+		worker.putMethodArg("usersToSync", newTeamMembers);
+
+		worker.start();
+
+	} else {
+		this.log.debug("attemptUserSync: No need to sync users before adding to team");
+	}
+
+    return newTeamMembers.length;
+  },
+
   attemptUpdateOtherwiseAdd : function(userToDelete, groupInfo) {
     try {
       // returns the current team and process any deleted users
@@ -165,6 +194,9 @@ xMattersGroupMemberSync.prototype = {
       var memberList = this.soapHelper.mergeMemberLists( this.snMembers, team.members );
       this.log.debug("attemptUpdateOtherwiseAdd: mergeMemberLists with group " + this.groupName + " finished.");
       
+      var membersSyncd = this.attemptUserSync(team);
+      this.log.debug("attemptUpdateOtherwiseAdd: " + membersSyncd + " members synchronized to xMatters");
+
       this.log.debug("attemptUpdateOtherwiseAdd calling sendUpdateTeamSOAPMessage with group " + this.groupName + " and team " + team.name);
       var start = this.soapHelper.timer();
       var response = this.soapHelper.sendUpdateTeamSOAPMessage(this.groupName, memberList, team);
@@ -174,9 +206,13 @@ xMattersGroupMemberSync.prototype = {
       
       return response;
     } catch(e) {
+      var membersSyncd;
       if (e == this.TEAM_DOES_NOT_EXIST) {
         this.log.warn(this.groupName + " Team does not exist. Attempting to ADD team with coverage");
         try {
+          membersSyncd = this.attemptUserSync();
+          this.log.debug("attemptUpdateOtherwiseAdd: " + membersSyncd + " members synchronized to xMatters");
+
           var response2 = this.soapHelper.sendAddTeamSOAPMessage(this.groupName, this.snMembers);
           response2 += "\n";
           response2 += this.soapHelper.sendAddCoverageSOAPMessage(this.groupName);
@@ -188,6 +224,9 @@ xMattersGroupMemberSync.prototype = {
       } else if (e == this.UNKNOWN_TEAM_IN_GROUP_WITH_TEAMS) {
         this.log.warn(this.groupName + " Team does not exist. Attempting to ADD team without coverage");
         try {
+          membersSyncd = this.attemptUserSync();
+          this.log.debug("attemptUpdateOtherwiseAdd: " + membersSyncd + " members synchronized to xMatters");
+
           var response3 = this.soapHelper.sendAddTeamSOAPMessage(this.groupName, this.snMembers);
           return response3;
         } catch (e3) {
@@ -206,7 +245,7 @@ xMattersGroupMemberSync.prototype = {
         <sys_created_on>2015-02-09 19:56:02</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>9d7205cb7b02f1008e0b707d784d4d44</sys_id>
-        <sys_mod_count>17</sys_mod_count>
+        <sys_mod_count>18</sys_mod_count>
         <sys_name>xMattersGroupMemberSync</sys_name>
         <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
@@ -214,6 +253,6 @@ xMattersGroupMemberSync.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_9d7205cb7b02f1008e0b707d784d4d44</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-10-01 21:29:34</sys_updated_on>
+        <sys_updated_on>2016-06-07 17:27:37</sys_updated_on>
     </sys_script_include>
 </record_update>

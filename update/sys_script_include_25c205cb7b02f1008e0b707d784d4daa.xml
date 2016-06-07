@@ -1341,6 +1341,32 @@ xMattersSOAPHelper.prototype = {
       this.setParameter('wsPassword', gs.getProperty(this.appPrefix + '.' + "xmatters.sync.ws.password"));
     },
     
+	/**
+	 * determine find any new team members (not already in xMatters)
+	 * @param Array snUsers in ServiceNow group
+	 * @param Array xmTeamMembers existing from xMatters
+	 * @returns Array of new team members that need to be syncd to xMatters
+	 */
+	getNewTeamMembers: function (snUsers, xmTeamMembers) {
+		var newTeamMembers = [];
+		for (var snUser in snUsers) {
+			this.log.debug("looking for SN User, '" + snUsers[snUser] + "', in team");
+			
+			var alreadyInTeam = false;
+			for (var xmTeamMember in xmTeamMembers) {
+				if (snUsers[snUser] == xmTeamMembers[xmTeamMember].name) {
+					alreadyInTeam = true;
+					break;
+				}
+			}
+			if (!alreadyInTeam) {
+				this.log.debug("New team member, '" + snUsers[snUser] + "' found");
+				newTeamMembers.push(snUsers[snUser]);
+			}
+		}
+		return newTeamMembers;
+	},
+	
     /***
     *  Merge the ServiceNow group member list with the existing xMatters member list
     */
@@ -1576,7 +1602,7 @@ xMattersSOAPHelper.prototype = {
         <sys_created_on>2015-02-09 19:57:19</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>25c205cb7b02f1008e0b707d784d4daa</sys_id>
-        <sys_mod_count>86</sys_mod_count>
+        <sys_mod_count>87</sys_mod_count>
         <sys_name>xMattersSOAPHelper</sys_name>
         <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
@@ -1584,6 +1610,6 @@ xMattersSOAPHelper.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_25c205cb7b02f1008e0b707d784d4daa</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-10-02 00:06:26</sys_updated_on>
+        <sys_updated_on>2016-06-07 17:24:38</sys_updated_on>
     </sys_script_include>
 </record_update>
