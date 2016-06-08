@@ -17,9 +17,6 @@ xMattersLogger.prototype = {
     this.type = 'xMattersLogger';
     this.source = (source == null ? '' : source + ' ' );
     
-    this.count = 0;
-    this.numZeros = 4;
-    
     logLevel = (logLevel == null ? 'WARN' : logLevel );
     
     if (logLevel.toUpperCase() == "ERROR") {
@@ -42,35 +39,29 @@ xMattersLogger.prototype = {
 
   debug : function(s) {
     if (this.isDebug()){
-      this.count++;
-      
-      // It often happens that we write multiple
-      // lines to the log in one second, which 
-      // means they are not sorted in the system
-      // logs. So, here we add a number (i.e. 002) 
-      // to each line so you can sort on the log. 
-      s = 'DEBUG: ' + this.paddy( this.count, this.numZeros ) + ' ' + s;
-      gs.info( this.source + s );
+      s = 'DEBUG: ' + ' ' + s;
+      gs.debug( '{0}: {1}', new Date().getTime() + ': ', this.source + s );
     }
   },
   
   info : function(s) {
     if (this.logLevel <= 1){
-      gs.info( this.source + s );
+      gs.info( '{0}: {1}', new Date().getTime() + ': ', this.source + s );
     }
   },
   
   warn : function(s) {
     if (this.logLevel <= 2){
-      gs.warn( this.source + s );
+      gs.warn( '{0}: {1}', new Date().getTime() + ': ', this.source + s );
     }
   },
   
   error : function(s) {
     if (this.logLevel <= 3){
-      gs.error( this.source + s );
+      gs.error( '{0}: {1}', new Date().getTime() + ': ', this.source + s );
     }
   },
+
   paddy : function (n, p, c) {
     var pad_char = typeof c !== 'undefined' ? c : '0';
     var pad = new Array(1 + p).join(pad_char);
@@ -82,7 +73,7 @@ xMattersLogger.prototype = {
         <sys_created_on>2015-02-09 19:56:39</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>c8a205cb7b02f1008e0b707d784d4dbc</sys_id>
-        <sys_mod_count>11</sys_mod_count>
+        <sys_mod_count>16</sys_mod_count>
         <sys_name>xMattersLogger</sys_name>
         <sys_package display_value="Global" source="global">global</sys_package>
         <sys_policy/>
@@ -90,6 +81,6 @@ xMattersLogger.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_c8a205cb7b02f1008e0b707d784d4dbc</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2015-09-24 18:53:43</sys_updated_on>
+        <sys_updated_on>2016-06-07 18:57:38</sys_updated_on>
     </sys_script_include>
 </record_update>
