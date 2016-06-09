@@ -7,7 +7,7 @@
         <sys_class_name>sys_properties_category_m2m</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-03-19 03:57:01</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_id>2f63d18f4f3a31008472a88ca310c731</sys_id>
         <sys_mod_count>0</sys_mod_count>
         <sys_name>x_xma_xmatters.xmatters.api.password.xMatters Incident Properties</sys_name>

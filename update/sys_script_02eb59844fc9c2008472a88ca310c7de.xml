@@ -40,7 +40,7 @@
 
     } else if (xmperson.isRemoveRequired(current, previous)) {
         log.debug('Removing ' + current.user_name);
-        xmperson.removeUser(current);
+        xmperson.removeUserAsync(current);
     }
 }]]></script>
         <sys_class_name>sys_script</sys_class_name>
@@ -50,7 +50,7 @@
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>02eb59844fc9c2008472a88ca310c7de</sys_id>
-        <sys_mod_count>10</sys_mod_count>
+        <sys_mod_count>11</sys_mod_count>
         <sys_name>xMatters User Sync</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
@@ -59,7 +59,7 @@
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_02eb59844fc9c2008472a88ca310c7de</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 00:58:56</sys_updated_on>
+        <sys_updated_on>2016-06-09 00:53:24</sys_updated_on>
         <template/>
         <when>after</when>
     </sys_script>

@@ -45,7 +45,7 @@ function handleTaskInsert() {
         <sys_class_name>sysevent_script_action</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-09-24 19:04:47</sys_created_on>
-        <sys_customer_update>true</sys_customer_update>
+        <sys_customer_update>false</sys_customer_update>
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>989731484ffe42008472a88ca310c7cf</sys_id>

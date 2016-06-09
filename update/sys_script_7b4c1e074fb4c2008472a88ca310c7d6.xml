@@ -29,6 +29,10 @@
         <rest_variables/>
         <role_conditions/>
         <script><![CDATA[function onAfter(current, previous) {
+    var log = new xMattersLogger(gs.getProperty('x_xma_xmatters.xmatters.logging.level'),
+        'xMatters User Role Sync BR');
+    log.debug('In xMatters User Role Sync Business Rule');
+
     var userRec = new GlideRecord('sys_user');
     userRec.addQuery('sys_id', current.user);
     userRec.query();
@@ -42,7 +46,7 @@
         xmperson.syncUserAsync(userRec);
 
     } else if (xmperson.isRemoveRequired(null, null, current, previous)) {
-        xmperson.removeUser(userRec);
+        xmperson.removeUserAsync(userRec);
     }
 }]]></script>
         <sys_class_name>sys_script</sys_class_name>
@@ -52,7 +56,7 @@
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>7b4c1e074fb4c2008472a88ca310c7d6</sys_id>
-        <sys_mod_count>8</sys_mod_count>
+        <sys_mod_count>10</sys_mod_count>
         <sys_name>xMatters User Role Sync</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
@@ -61,7 +65,7 @@
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_7b4c1e074fb4c2008472a88ca310c7d6</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 00:58:15</sys_updated_on>
+        <sys_updated_on>2016-06-09 00:53:41</sys_updated_on>
         <template/>
         <when>after</when>
     </sys_script>

@@ -177,9 +177,12 @@ xMattersPerson.prototype = {
         // values from SN
         if (xMUser) {
             user = new global.JSON().decode(new global.JSON().encode(xMUser));
+        } else {
+            // populate externalKey only if we are creating a new person
+            // used to later identify if person was created via a sync
+            user.externalKey = userRec[this.userNameField].getDisplayValue();
         }
 
-        user.externalKey = userRec[this.userNameField].getDisplayValue();
         user.targetName = userRec[this.userNameField].getDisplayValue();
         user.firstName = userRec.first_name.getDisplayValue();
         user.lastName = userRec.last_name.getDisplayValue();
@@ -256,6 +259,7 @@ xMattersPerson.prototype = {
             return null;
         }
 
+        this.log.debug('getPersonFromxM(): person: ' + resp.body);
         return new global.JSON().decode(resp.body);
     },
 
@@ -446,6 +450,9 @@ xMattersPerson.prototype = {
      * be used only when dealing directly with the sys_user_has_role
      * record.
      *
+     * In determining if the user should be deleted, we check to see if
+     * the user was originally created in ServiceNow
+     *
      * @param userRec the "current" sys_user record
      * @param userRec_prev the "previous" sys_user record
      * @param userRoleRec the "current" sys_user_has_role record
@@ -477,14 +484,35 @@ xMattersPerson.prototype = {
         return false;
     },
 
+    removeUserAsync: function (userRec) {
+        var worker = new GlideScriptedHierarchicalWorker();
+        worker.setProgressName("x_xma_xmatters.xMattersPerson removeUser: " + userRec.user_name.getDisplayValue());
+
+        worker.setBackground(true);
+        worker.setScriptIncludeName("x_xma_xmatters.xMattersPerson");
+        worker.setScriptIncludeMethod("removeUser");
+        worker.putMethodArg("userRec", userRec);
+        worker.start();
+
+        return worker.getProgressID();
+    },
+
     /**
      * remove a user specified by userRec
      *
      * @param userRec The sys_user record of the user to remove from xM.
      */
     removeUser: function (userRec) {
-        var path = this.APIVERSION + '/people/' + encodeURIComponent(userRec[this.userNameField]);
+        // ensure there is a user that was created through a sync
+        var username = userRec[this.userNameField].getDisplayValue();
+        var xMUser = this.getPersonFromxM(username);
+        this.log.debug('removeUser(): xMUser: ' + (new global.JSON().encode(xMUser)));
+        if (!xMUser || !xMUser.externalKey) {
+            this.log.debug('removeUser: Will not remove user, ' + username + ', that was not created by sync');
+            return false;
+        }
 
+        var path = this.APIVERSION + '/people/' + encodeURIComponent(userRec[this.userNameField]);
         var opts = {
             "method": "DELETE",
             "path": path
@@ -493,7 +521,7 @@ xMattersPerson.prototype = {
         this.log.debug('removeUser: opts: ' + (new global.JSON().encode(opts) ));
 
         var dataHelper = new xMattersDataHelper();
-        dataHelper.sendRequestAsync(opts);
+        dataHelper.sendRequest(opts);
     },
 
     /**
@@ -534,8 +562,11 @@ xMattersPerson.prototype = {
     /**
      * Check if user has a specified role
      *
+     * If not roles are passed, roles are checked against the configuration
+     * roles.list for syncing users
+     *
      * @param userSys_ID  the sys_user iID of the user to check
-     * @param roles optional] - A string or an array of roles to check
+     * @param roles [optional] - A string or an array of roles to check
      * @returns {boolean} if the user has one of the roles specified
      */
     hasRole: function (userSys_ID, roles) {
@@ -596,7 +627,7 @@ xMattersPerson.prototype = {
         <sys_created_on>2016-04-26 19:31:51</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>6188cd114f4312008472a88ca310c7dd</sys_id>
-        <sys_mod_count>19</sys_mod_count>
+        <sys_mod_count>26</sys_mod_count>
         <sys_name>xMattersPerson</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -604,6 +635,6 @@ xMattersPerson.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_6188cd114f4312008472a88ca310c7dd</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 01:06:15</sys_updated_on>
+        <sys_updated_on>2016-06-09 00:37:56</sys_updated_on>
     </sys_script_include>
 </record_update>
