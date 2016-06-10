@@ -7,23 +7,50 @@
         <client_callable>false</client_callable>
         <description/>
         <name>xMattersDevice</name>
-        <script><![CDATA[var xMattersDevice = Class.create();
-xMattersDevice.prototype = {
-    initialize: function () {
+        <script><![CDATA[gs.include('xMattersLogger');
+gs.include('xMattersDataHelper');
 
-        this.APIVERSION = '/api/xm/1';
-        this.log = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"), 'xMattersDevice');
+/**
+ * xMattersDevice model for mapping xMatters person device objects with ServiceNow users
+ *
+ * @type {Object}
+ */
+var xMattersDevice = Class.create();
+
+xMattersDevice.prototype = {
+	
+    initialize: function (dataHelper) {
+        this.log = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"),
+									  'xMattersDevice');
+
+		this.APIVERSION = '/api/xm/1';
+
+		if (dataHelper && dataHelper.type == 'xMattersDataHelper') {
+			this.log.debug('xMattersPerson::initialize using passed in dataHelper');
+			this.dataHelper = dataHelper;
+		} else {
+			this.log.debug('xMattersPerson::initialize creating own dataHelper');
+			this.dataHelper = new xMattersDataHelper();
+		}
     },
 
-    /* 
-     *  syncDevice - Send the device over to xMatters
-     *  
-     *  device - xMatters Device Object. If the "id" is
-     *    included, xMatters will update, otherwise the
-     *    device will be added.
-     */
+	/**
+	 * Sync a device to xMatters
+	 *
+	 * If the device Id is included in the device object,
+	 * the device will be updated; otherwise a new device
+	 * will be created.
+	 *
+	 * @param {*} device to sync
+	 */
     syncDevice: function (device) {
-
+		// do not send the targetName field
+		if ('targetName' in device) {
+			this.log.debug('syncDevice: Invalid key targetName: ' + device.targetName +
+						   ' found in ' + device.name + ' device');
+			delete device.targetName;
+		}
+		
         var opts = {
             "path": this.APIVERSION + '/devices',
             "method": "POST",
@@ -34,39 +61,33 @@ xMattersDevice.prototype = {
         };
 
         this.log.debug('syncDevice: opts: ' + (new global.JSON().encode(opts) ));
-
-        var dataHelper = new xMattersDataHelper();
-        dataHelper.sendRequestAsync(opts);
-
+        this.dataHelper.sendRequestAsync(opts);
     },
 
-    /* 
-     *  extractDeviceByType - Loop through the result of
-     *   GET /people/{personID}/devices and return the device
-     *   object for the name passed in. 
-     *
-     *  name - Device name to search for. e.g. Work Phone, SMS Phone
-     *  devices - An object with an array called data with device objects
-     */
+	/**
+	 * Extract and return a device from the results of an API lookup
+	 *
+	 * @param {string} name of the device to extract
+	 * @devices {*} devices object returned from xMatters API
+	 * @returns {null|*} the extracted device or null if not found
+	 */
     extractDeviceByName: function (name, devices) {
-
         for (var i = 0; i < devices.data.length; i++) {
-            if (devices.data[i].name == name)
+            if (devices.data[i].name == name) {
                 return devices.data[i];
+			}
         }
 
         return null;
     },
 
-    /*
-     *  removeDevice - Deletes a device from xM. 
-     *
-     *  deviceID - The UUID of the device to be removed
-     */
+	/**
+	 * Delete a device from xMatters
+	 *
+	 * @param {string} deviceID UUID of device to remove
+	 */
     removeDevice: function (deviceID) {
-
         var path = this.APIVERSION + '/devices/' + deviceID;
-
 
         var opts = {
             "method": "DELETE",
@@ -75,22 +96,19 @@ xMattersDevice.prototype = {
 
         this.log.debug('removeDevice: opts: ' + (new global.JSON().encode(opts) ));
 
-        var dataHelper = new xMattersDataHelper();
-        dataHelper.sendRequestAsync(opts);
-
+        this.dataHelper.sendRequestAsync(opts);
     },
 
-    /*
-     *  cleanPhoneNumber - Cleans any garbage characters out of a phone number
-     *    for use in SMS or Voice phones. Also retrieves the country code and
-     *    returns the full number, ready for sending to xMatters
-     *
-     *  phoneRAW - The raw phone number, complete with ()-.+ characters.
-     */
-    cleanPhoneNumber: function (phoneRAW) {
-        var phoneNumber = String(phoneRAW).replace(/[^\d\.\+]+/g, '');
+	/**
+	 * Clean up a phone number and return in xMatters' expected format
+	 *
+	 * @param {string} phoneRAW a phone number to format
+	 * @returns {string} formatted phone number
+	 */
+    cleanPhoneNumber: function (phoneRaw) {
+        var phoneNumber = String(phoneRaw).replace(/[^\d\.\+]+/g, '');
 
-        this.log.debug('phoneRAW: ' + phoneRAW + '\n' +
+        this.log.debug('phoneRaw: ' + phoneRaw + '\n' +
             'phoneNumber: ' + phoneNumber);
 
         // If there is no +, then assume US based
@@ -101,16 +119,16 @@ xMattersDevice.prototype = {
         var cCodeNumber = this.getCountryCode(phoneNumber);
         phoneNumber = cCodeNumber.number;
         cCode = cCodeNumber.code;
+		
         return '+' + cCode + phoneNumber;
-
-
     },
 
-    /*
-     *  getCountryCode - Get the country code from a phone number
-     * 
-     *  number - The phone number to test
-     */
+	/**
+	 * Get the country code for a given phone number
+	 *
+	 * @param {string} number of the phone to lookup
+	 * @returns {*} the found country code
+	 */
     getCountryCode: function (number) {
         var re = /\D/g;
         var n = number.replace(re, '');
@@ -126,11 +144,14 @@ xMattersDevice.prototype = {
 
         // If we got here, we didn't find a
         // matching code, so just return as is and log
-        this.log.info('Could not match "' + n + '" to a country code. Defaulting to User\'s default country code.');
+        this.log.info('Could not match "' + n +
+					  '" to a country code. Defaulting to User\'s default country code.');
         return {"number": n};
-
     },
 
+	/**
+	 * List of country codes to use for phone devices
+	 */
     COUNTRY_CODES: {
         "1": {"code": "1", "name": "United States", "iso_code": "US"},
         "7": {"code": "7", "name": "Russia", "iso_code": "RU"},
@@ -338,15 +359,14 @@ xMattersDevice.prototype = {
         "998": {"code": "998", "name": "Uzbekistan", "iso_code": "UZ"}
     },
 
-
     type: 'xMattersDevice'
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2016-04-25 23:45:06</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>d1fbb88d4f0f5a008472a88ca310c753</sys_id>
-        <sys_mod_count>1</sys_mod_count>
+        <sys_mod_count>3</sys_mod_count>
         <sys_name>xMattersDevice</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -354,6 +374,6 @@ xMattersDevice.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_d1fbb88d4f0f5a008472a88ca310c753</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 01:05:56</sys_updated_on>
+        <sys_updated_on>2016-06-10 17:57:32</sys_updated_on>
     </sys_script_include>
 </record_update>

@@ -7,7 +7,8 @@
         <client_callable>false</client_callable>
         <description/>
         <name>xMattersPersonCollection</name>
-        <script><![CDATA[gs.include("xMattersPerson");
+        <script><![CDATA[gs.include('xMattersDataHelper');
+gs.include('xMattersPerson');
 
 /**
  * xMattersPersonCollection model for managing multiple users
@@ -21,19 +22,22 @@ xMattersPersonCollection.prototype = {
     /**
      * Initialize the xMattersPerson object
      */
-    initialize: function () {
+    initialize: function (dataHelper) {
         this.MAX_CALLS_PER_USER = 7;
         this.MAX_CALLS_PER_PROCESS = 100;
 
-        this.restHelper = new xMattersRESTHelper();
         this.log = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"),
             'xMattersPersonCollection');
 
-        this.USER_DOES_NOT_EXIST = "UNKNOWN_USER";
-        this.USER_ALREADY_EXISTS = /(WEB_LOGIN_IN_USE|TARGET_NAME_IN_USE)/;
-        this.FAILED_INCLUDE_EXCLUDE = "FAILED_INCLUDE_EXCLUDE";
-        this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE =
-            "USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE";
+		if (dataHelper && dataHelper.type == 'xMattersDataHelper') {
+			this.log.debug('xMattersPersonCollection::initialize using passed in dataHelper');
+			this.dataHelper = dataHelper;
+		} else {
+			this.log.debug('xMattersPersonCollection::initialize creating own dataHelper');
+			this.dataHelper = new xMattersDataHelper();
+		}
+
+		this.person = new xMattersPerson(this.dataHelper);
     },
 
     /**
@@ -64,35 +68,31 @@ xMattersPersonCollection.prototype = {
         this.log.warn("Worker loading " + users.length + " users " +
             (this.log.isDebug() ? users : "") + " started at " + start, logId1, logId2++);
 
-        var ugr = new GlideRecord("sys_user");
-        ugr.addEncodedQuery('user_nameIN' + users.join());
-        ugr.orderBy('user_name');
-        ugr.query();
+        var userRec = new GlideRecord("sys_user");
+        userRec.addEncodedQuery('user_nameIN' + users.join());
+        userRec.orderBy('user_name');
+        userRec.query();
 
         var userCount = 0, syncedUsers = [];
-        while (ugr.next()) {
-            this.log.debug("Loading user " + ugr.user_name + "...", logId1, logId2++);
+        while (userRec.next()) {
+            this.log.debug("Loading user " + userRec.user_name + "...", logId1, logId2++);
 
-            var syncd = this.syncUser(ugr, ugr.user_name, "UpdateUser",
-                gs.getProperty("x_xma_xmatters.xmatters.user.sync.delete.non.matching.users"), true);
-
-            if (syncd == "true") {
-                this.syncDevices(ugr);
-
-            } else if (syncd == this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE) {
-                this.log.error("User Sync has finished as " + this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE +
-                    " has occurred. REST calls: " + this.restHelper.callCount, logId1, logId2++);
-                break;
-            }
+			if (!this.person.syncUser(userRec)) {
+                this.log.error("User Sync has finished on REST error response. REST calls: " +
+							   this.dataHelper.getCallCount(), logId1, logId2++);
+				break;
+			}
 
             userCount++;
-            if (this.log.isDebug()) syncedUsers.push(ugr.user_name.toString());
+            if (this.log.isDebug()) {
+				syncedUsers.push(userRec.user_name.toString());
+			}
 
-            if (this.MAX_CALLS_PER_PROCESS - this.restHelper.callCount < this.MAX_CALLS_PER_USER) {
+            if (this.MAX_CALLS_PER_PROCESS - this.dataHelper.getCallCount() < this.MAX_CALLS_PER_USER) {
                 // do the rest of the work in a different process
                 var moreUsersToSync = [];
-                while (ugr.next()) {
-                    moreUsersToSync.push(ugr.user_name.toString());
+                while (userRec.next()) {
+                    moreUsersToSync.push(userRec.user_name.toString());
                 }
 
                 if (moreUsersToSync.length > 0) {
@@ -108,9 +108,52 @@ xMattersPersonCollection.prototype = {
         }
 
         this.log.warn("Worker completed syncing " + userCount + " of " + users.length + " users " +
-            (this.log.isDebug() ? syncedUsers : "") + " at " + (new Date()) + ". Time elapsed: " +
-            (new Date().getTime() - start.getTime()) + " ms. REST calls: " + this.restHelper.callCount,
-            logId1, logId2++);
+					  (this.log.isDebug() ? syncedUsers : "") + " at " + (new Date()) + ". Time elapsed: " +
+					  (new Date().getTime() - start.getTime()) + " ms. REST calls: " +
+					  this.dataHelper.getCallCount(), logId1, logId2++);
+    },
+	
+	/**
+     * Get the "syncable" users for a batch sync
+     *
+     * Only those uses that have a role listed in xmatters.user.sync.roles.list are
+     * eligible for sync. Roles can be directly attributed to the user or inherited
+     * through group membership
+     *
+     * @returns {Array}
+     */
+    getSyncableUsers: function () {
+        var arrayUtil = new global.ArrayUtil();
+
+        var syncableUsers = [];
+        var roleFilterList = gs.getProperty("x_xma_xmatters.xmatters.user.sync.roles.list");
+        if (roleFilterList.trim().length > 0) {
+            var roles = roleFilterList.split(";");
+            for (var j = 0; j < roles.length; j++) {
+                roles[j] = roles[j].trim();
+            }
+
+            var grUserRoles = new GlideRecord('sys_user_has_role');
+            grUserRoles.addQuery('user.active', 'true');
+            grUserRoles.addQuery('role.name', 'IN', roles.join());
+
+            // exclude the API user from sync
+            grUserRoles.addQuery('user.user_name', '!=', gs.getProperty('x_xma_xmatters.xmatters.api.user'));
+
+            grUserRoles.orderBy('user.user_name');
+            grUserRoles.query();
+            while (grUserRoles.next()) {
+                if (!arrayUtil.contains(syncableUsers, grUserRoles.user.user_name.toString())) {
+                    syncableUsers.push(grUserRoles.user.user_name.toString());
+                }
+            }
+
+            syncableUsers = arrayUtil.unique(syncableUsers);
+        }
+
+        this.log.debug("*** " + syncableUsers.length + " users matched: " + syncableUsers.join());
+
+        return syncableUsers;
     },
 
     type: 'xMattersPersonCollection'
@@ -121,7 +164,7 @@ xMattersPersonCollection.prototype = {
         <sys_created_on>2016-06-10 01:16:12</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>29304debdb7312009a0255d0cf961909</sys_id>
-        <sys_mod_count>0</sys_mod_count>
+        <sys_mod_count>3</sys_mod_count>
         <sys_name>xMattersPersonCollection</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -129,6 +172,6 @@ xMattersPersonCollection.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_29304debdb7312009a0255d0cf961909</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-10 01:16:12</sys_updated_on>
+        <sys_updated_on>2016-06-10 16:04:24</sys_updated_on>
     </sys_script_include>
 </record_update>
