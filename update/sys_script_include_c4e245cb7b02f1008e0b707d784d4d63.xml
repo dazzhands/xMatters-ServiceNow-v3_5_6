@@ -8,7 +8,7 @@
         <description>Helper class to manage the user and device sync process.</description>
         <name>xMattersUserSync</name>
         <script><![CDATA[gs.include("xMattersLogger");
-gs.include("xMattersSOAPHelper");
+gs.include("xMattersRESTHelper");
 
 var xMattersUserSync = Class.create();
 
@@ -19,7 +19,7 @@ xMattersUserSync.prototype = {
         this.MAX_CALLS_PER_PROCESS = 100;
 
         this.appPrefix = gs.getCurrentScopeName();
-        this.soapHelper = new xMattersSOAPHelper();
+        this.restHelper = new xMattersRESTHelper();
         this.log = new xMattersLogger(gs.getProperty(this.appPrefix + '.' + "xmatters.logging.level"), 'xMattersUserSync');
 
         this.USER_DOES_NOT_EXIST = "UNKNOWN_USER";
@@ -54,14 +54,15 @@ xMattersUserSync.prototype = {
             if (syncd == "true") {
                 this.syncDevices(ugr);
             } else if (syncd == this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE) {
-                this.log.error("User Sync has finished as " + this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE + " has occurred. SOAP calls: " + this.soapHelper.callCount);
+                this.log.error("User Sync has finished as " + this.USER_OR_MOBILE_GATEWAY_USER_EXCEED_QUOTA_OR_LICENSE + 
+                    " has occurred. REST calls: " + this.restHelper.callCount);
                 break;
             }
 
             userCount++;
             if (this.log.isDebug()) syncedUsers.push(ugr.user_name.toString());
 
-            if (this.MAX_CALLS_PER_PROCESS - this.soapHelper.callCount < this.MAX_CALLS_PER_USER) {
+            if (this.MAX_CALLS_PER_PROCESS - this.restHelper.callCount < this.MAX_CALLS_PER_USER) {
                 // do the rest of the work in a different process
                 var moreUsersToSync = [];
                 while (ugr.next()) {
@@ -69,7 +70,8 @@ xMattersUserSync.prototype = {
                 }
                 if (moreUsersToSync.length > 0) {
                     if (this.log.isDebug()) {
-                        this.log.warn(id + ': Worker is close to SOAP calls quota and will sync ' + moreUsersToSync.length + ' users: ' + moreUsersToSync + ' in a separate process');
+                        this.log.warn(id + ': Worker is close to REST calls quota and will sync ' +
+                            moreUsersToSync.length + ' users: ' + moreUsersToSync + ' in a separate process');
                     }
                     this.syncUsersAsync(moreUsersToSync);
                 }
@@ -77,7 +79,9 @@ xMattersUserSync.prototype = {
             }
         }
 
-        this.log.warn(id + ": Worker completed syncing " + userCount + " of " + usersToSync.length + " users " + (this.log.isDebug() ? syncedUsers : "") + " at " + (new Date()) + ". Time elapsed: " + (new Date().getTime() - start.getTime()) + " ms. SOAP calls: " + this.soapHelper.callCount);
+        this.log.warn(id + ": Worker completed syncing " + userCount + " of " + usersToSync.length + " users " +
+            (this.log.isDebug() ? syncedUsers : "") + " at " + (new Date()) + ". Time elapsed: " +
+            (new Date().getTime() - start.getTime()) + " ms. REST calls: " + this.restHelper.callCount);
     },
 
     /**
@@ -105,45 +109,32 @@ xMattersUserSync.prototype = {
 
     /**
      * Synchronize the user with xMatters
-     * @param record the current user record
-     * @param userName name of the user being modified
-     * @param triggerRule String defining the action to take
-     * @param deleteIfNotIncluded If the user is not included in the include/exclude list we should remove them from xMatters if they exist
-     * @return true if the user was not removed via the include/explude rules, false if removed
+     * @param {{}} record the current user record
+     * @param {string} userName name of the user being modified
+     * @param {string} triggerRule defining the action to take
+     * @returns {*} true if the user was not removed via the include/exclude rules, false if removed
      */
-    syncUser: function (record, userName, triggerRule, deleteIfNotIncluded, ignoreIncludeExcludeList) {
-
-        if (ignoreIncludeExcludeList || this.soapHelper.checkIncludeExcludeList("User", record.user_name, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.include.exclude.list"), gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.exclude.list.boolean"), "", triggerRule)) {
-            var error; // used to return errors created while calling syncUser
-            if (this.seedOnly) {
-                error = this.seedOnlyUser(record);
-            }
-            else if (triggerRule == "AddUser") {
-                error = this.addUser(record);
-            }
-            else if (triggerRule == "UpdateUser") {
-                error = this.updateUser(record, userName);
-            }
-            else {
-                error = this.deleteUser(userName);
-            }
-            if (error == null) {
-                return "true";
-            } else if (error == "") { // no errors and syncing of the devices is not necessary
-                return "false";
-            } else {
-                this.log.error("Failed to Sync User " + record.user_name + ": " + error);
-                return '' + error;
-            }
+    syncUser: function (record, userName, triggerRule) {
+        var error; // used to return errors created while calling syncUser
+        if (triggerRule == "AddUser") {
+            error = this.addUser(record);
+            
+        } else if (triggerRule == "UpdateUser") {
+            error = this.updateUser(record, userName);
+            
         } else {
-            // The user does not match the sync list
-            // Check to see if they exist in xMatters, if so delete the user
-            if ((triggerRule == "UpdateUser" || triggerRule == "AddUser") && (deleteIfNotIncluded == null || deleteIfNotIncluded == "true") && !this.seedOnly && this.soapHelper.checkIfUserExistsInXmatters(userName)) {
-                this.log.debug("User " + userName + " did not match the synchornization list but they exist in xMatters and will be deleted.");
-                this.deleteUser(userName);
-                return "FAILED_INCLUDE_EXCLUDE and deleted from xMatters";
-            }
-            return "FAILED_INCLUDE_EXCLUDE";
+            error = this.deleteUser(userName);
+        }
+    
+        if (error == null) {
+            return "true";
+            
+        } else if (error == "") { // no errors and syncing of the devices is not necessary
+            return "false";
+            
+        } else {
+            this.log.error("Failed to Sync User " + record.user_name + ": " + error);
+            return '' + error;
         }
     },
 
@@ -169,7 +160,7 @@ xMattersUserSync.prototype = {
     seedOnlyUser: function (record) {
         this.log.debug("About to seed user: " + record.user_name);
         try {
-            this.soapHelper.sendAddUserSOAPMessage(record);
+            this.restHelper.sendAddUserRESTMessage(record);
 
             this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.email.device.name"), "Email", record.email);
             this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.work.phone.device.name"), "Phone", record.phone);
@@ -196,7 +187,7 @@ xMattersUserSync.prototype = {
     addUser: function (record) {
         try {
             this.log.debug("About to add user: " + record.user_name);
-            this.soapHelper.sendAddUserSOAPMessage(record);
+            this.restHelper.sendAddUserRESTMessage(record);
             this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.email.device.name"), "Email", record.email);
             this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.work.phone.device.name"), "Phone", record.phone);
             this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.mobile.phone.device.name"), "Phone", record.mobile_phone);
@@ -208,7 +199,7 @@ xMattersUserSync.prototype = {
             if (this.USER_ALREADY_EXISTS.test(e)) {
                 this.log.warn(record.user_name + " already exists. Attempting to UPDATE");
                 try {
-                    this.soapHelper.sendUpdateUserSOAPMessage(record, record.user_name);
+                    this.restHelper.sendUpdateUserRESTMessage(record, record.user_name);
                     return null; // sync devices
                 } catch (e2) {
                     this.log.error("Failed to Update User " + record.user_name + ": " + e2 + ': ' + e2.message);
@@ -229,14 +220,14 @@ xMattersUserSync.prototype = {
     updateUser: function (record, previousUserName) {
         try {
             this.log.debug("About to update user: " + previousUserName);
-            this.soapHelper.sendUpdateUserSOAPMessage(record, previousUserName);
+            this.restHelper.sendUpdateUserRESTMessage(record, previousUserName);
         } catch (e) {
             this.log.debug('updateUser: ERROR: ' + e);
 
             if (e == this.USER_DOES_NOT_EXIST) {
                 this.log.warn(previousUserName + " does not exist. Attempting to ADD");
                 try {
-                    var status = this.soapHelper.sendAddUserSOAPMessage(record);
+                    var status = this.restHelper.sendAddUserRESTMessage(record);
 
                     this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.email.device.name"), "Email", record.email);
                     this.addDevice(record, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.work.phone.device.name"), "Phone", record.phone);
@@ -263,7 +254,7 @@ xMattersUserSync.prototype = {
         if (gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.seed.only").toLowerCase() == "false") {
             try {
                 this.log.debug("Sending Delete User: " + userName);
-                this.soapHelper.sendDeleteUserSOAPMessage(userName);
+                this.restHelper.sendDeleteUserRESTMessage(userName);
             }
             catch (e) {
                 this.log.error("Failed to Delete User " + userName + ": " + e + ': ' + e.message);
@@ -278,7 +269,7 @@ xMattersUserSync.prototype = {
     syncDevices: function (record) {
         this.log.debug("Calling syncDevices for user " + record.user_name);
         // only query xMatters for devices if seedOnly is false
-        var xMdevices = this.seedOnly ? [] : this.soapHelper.sendQueryDeviceSOAPMessage(record.user_name);
+        var xMdevices = this.seedOnly ? [] : this.restHelper.sendQueryDeviceRESTMessage(record.user_name);
         this.log.debug("User " + record.user_name + " has xMatters devices: " + xMdevices.length + " (seedOnly=" + this.seedOnly + ")");
 
         var devices = {};
@@ -325,10 +316,10 @@ xMattersUserSync.prototype = {
                     }
                 } else if (deviceInfo == null) {
                     this.log.debug("User " + record.user_name + " has " + device + " but no device exists in xMatters, add device.");
-                    this.soapHelper.sendAddDeviceSOAPMessage(record, devices[device].type, device);
+                    this.restHelper.sendAddDeviceRESTMessage(record, devices[device].type, device);
                 } else {
                     // device is configured in both Service Now and xMatters, syncing may be required
-                    this.soapHelper.sendUpdateDeviceSOAPMessage(record, devices[device].type, deviceInfo.deviceId, device, deviceInfo);
+                    this.restHelper.sendUpdateDeviceRESTMessage(record, devices[device].type, deviceInfo.deviceId, device, deviceInfo);
                 }
             } catch (e) {
                 this.log.error("Failed to synchronize " + device + " for " + record.user_name + ": " + e + ': ' + e.message);
@@ -338,7 +329,7 @@ xMattersUserSync.prototype = {
         for (var j = 0; j < devicesForRemoval.length; j++) {
             this.log.debug("User " + record.user_name + ": Delete device with id '" + devicesForRemoval[j] + "'");
             try {
-                this.soapHelper.sendDeleteDeviceSOAPMessage(devicesForRemoval[j]);
+                this.restHelper.sendDeleteDeviceRESTMessage(devicesForRemoval[j]);
             } catch (e2) {
                 this.log.error("Failed to delete device with id " + devicesForRemoval[j] + " for " + record.user_name + ": " + e2 + ': ' + e2.message);
             }
@@ -354,18 +345,18 @@ xMattersUserSync.prototype = {
      * @param deviceValue value to set for the device in xMatters
      */
     syncDevice: function (record, deviceName, deviceType, deviceValue) {
-        if (deviceValue != null && deviceValue != "" && this.soapHelper.checkIncludeExcludeList(deviceName + " for", record.user_name, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.include.exclude.list"), gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.exclude.list.boolean"))) {
+        if (deviceValue != null && deviceValue != "" && this.restHelper.checkIncludeExcludeList(deviceName + " for", record.user_name, gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.include.exclude.list"), gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.exclude.list.boolean"))) {
 
             try {
-                var deviceId = this.soapHelper.sendFindDeviceSOAPMessage(record.user_name, deviceName);
+                var deviceId = this.restHelper.sendFindDeviceRESTMessage(record.user_name, deviceName);
                 this.log.debug("Looking for device " + deviceName + " if ID: " + deviceId + " is present then it exists in xMatters");
                 if (deviceId != null && gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.seed.only").toLowerCase() == "false") {
                     this.log.debug("Sending device update for " + deviceName + " with value " + deviceValue);
-                    this.soapHelper.sendUpdateDeviceSOAPMessage(record, deviceType, deviceId, deviceName);
+                    this.restHelper.sendUpdateDeviceRESTMessage(record, deviceType, deviceId, deviceName);
                 }
                 else {
                     this.log.debug("Sending device add for " + deviceName + " with value " + deviceValue);
-                    this.soapHelper.sendAddDeviceSOAPMessage(record, deviceType, deviceName);
+                    this.restHelper.sendAddDeviceRESTMessage(record, deviceType, deviceName);
                 }
             } catch (e) {
                 this.log.error("Failed to synchronize " + deviceName + " for " + record.user_name + ": " + e + ': ' + e.message);
@@ -383,7 +374,7 @@ xMattersUserSync.prototype = {
     addDevice: function (record, deviceName, deviceType, deviceValue) {
         if (deviceValue != null && deviceValue != "") {
             this.log.debug("Sending device add for " + deviceName + " with value " + deviceValue);
-            this.soapHelper.sendAddDeviceSOAPMessage(record, deviceType, deviceName);
+            this.restHelper.sendAddDeviceRESTMessage(record, deviceType, deviceName);
         }
     },
 
@@ -393,19 +384,19 @@ xMattersUserSync.prototype = {
      * @param deviceName name of the device to delete
      */
     deleteDevice: function (userName, deviceName) {
-        var deviceId = this.soapHelper.sendFindDeviceSOAPMessage(userName, deviceName);
+        var deviceId = this.restHelper.sendFindDeviceRESTMessage(userName, deviceName);
         if (deviceId != null && gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.seed.only").toLowerCase() == "false") {
             this.log.debug("Attempting to delete device " + deviceName);
-            this.soapHelper.sendDeleteDeviceSOAPMessage(deviceId);
+            this.restHelper.sendDeleteDeviceRESTMessage(deviceId);
         }
     }
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 19:57:45</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>c4e245cb7b02f1008e0b707d784d4d63</sys_id>
-        <sys_mod_count>28</sys_mod_count>
+        <sys_mod_count>29</sys_mod_count>
         <sys_name>xMattersUserSync</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -413,6 +404,6 @@ xMattersUserSync.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_c4e245cb7b02f1008e0b707d784d4d63</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 01:21:36</sys_updated_on>
+        <sys_updated_on>2016-06-10 01:17:04</sys_updated_on>
     </sys_script_include>
 </record_update>

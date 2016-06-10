@@ -152,15 +152,58 @@ xMattersDataHelper.prototype = {
         return resp;
     },
 
+    /**
+     * Get the "syncable" users for a batch sync
+     *
+     * Only those uses that have a role listed in xmatters.user.sync.roles.list are
+     * eligible for sync. Roles can be directly attributed to the user or inherited
+     * through group membership
+     *
+     * @returns {Array}
+     */
+    getSyncableUsers: function () {
+        var arrayUtil = new global.ArrayUtil();
+
+        var syncableUsers = [];
+        var roleFilterList = gs.getProperty("x_xma_xmatters.xmatters.user.sync.roles.list");
+        if (roleFilterList.trim().length > 0) {
+            var roles = roleFilterList.split(";");
+            for (var j = 0; j < roles.length; j++) {
+                roles[j] = roles[j].trim();
+            }
+
+            var grUserRoles = new GlideRecord('sys_user_has_role');
+            grUserRoles.addQuery('user.active', 'true');
+            grUserRoles.addQuery('role.name', 'IN', roles.join());
+
+            // exclude the API user from sync
+            grUserRoles.addQuery('user.user_name', '!=', gs.getProperty('x_xma_xmatters.xmatters.api.user'));
+
+            grUserRoles.orderBy('user.user_name');
+            grUserRoles.query();
+            while (grUserRoles.next()) {
+                if (!arrayUtil.contains(syncableUsers, grUserRoles.user.user_name.toString())) {
+                    syncableUsers.push(grUserRoles.user.user_name.toString());
+                }
+            }
+
+            syncableUsers = arrayUtil.unique(syncableUsers);
+        }
+
+        this.log.debug("*** " + syncableUsers.length + " users matched: " + syncableUsers.join());
+
+        return syncableUsers;
+    },
+
 
     type: 'xMattersDataHelper'
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2016-04-25 23:35:43</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>b456b8454f0f5a008472a88ca310c70c</sys_id>
-        <sys_mod_count>7</sys_mod_count>
+        <sys_mod_count>9</sys_mod_count>
         <sys_name>xMattersDataHelper</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -168,6 +211,6 @@ xMattersDataHelper.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_b456b8454f0f5a008472a88ca310c70c</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 01:05:38</sys_updated_on>
+        <sys_updated_on>2016-06-10 04:02:30</sys_updated_on>
     </sys_script_include>
 </record_update>

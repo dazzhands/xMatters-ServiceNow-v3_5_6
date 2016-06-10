@@ -33,8 +33,8 @@ xMattersPerson.prototype = {
     /**
      * Insert/Update user in xMatters asynchronously (in the background)
      *
-     * @param userRec The sys_user record to sync, or the username of the user to sync.
-     * @param args Additional name/value pairs to add to the user body before sending to xM
+     * @param {*} userRec The sys_user record to sync, or the username of the user to sync.
+     * @param {null|[]} args optional array of name/value pairs to add to the user body before sending to xM
      * @returns {*}
      */
     syncUserAsync: function (userRec, args) {
@@ -119,11 +119,8 @@ xMattersPerson.prototype = {
             }
         }
 
-        var path = this.APIVERSION + '/people/';
-        var dataHelper = new xMattersDataHelper();
-
         var opts = {
-            "path": path,
+            "path": this.APIVERSION + '/people/',
             "method": 'POST',
             "headers": {
                 "Content-type": "application/json"
@@ -131,10 +128,23 @@ xMattersPerson.prototype = {
             "body": xMUser
         };
 
-        this.log.debug('syncUser: opts: ' + (new global.JSON().encode(opts) ));
+		this.log.debug('syncUser: opts: ' + (new global.JSON().encode(opts) ));
+
+		var dataHelper = new xMattersDataHelper();
         var resp = dataHelper.sendRequest(opts);
 
-        if (resp.status < 200 || resp.status > 299) { // allow any 2xx response
+		if (resp.status == 400 && resp.body.indexOf('The specified timezone is invalid') != -1) {
+			var defaultTimeZone = gs.getProperty('x_xma_xmatters.xmatters.sync.time.zone');
+			this.log.warn('syncUser: User has unknown timezone, ' + xMUser.timezone + 
+						  '. Using configuration default, ' + defaultTimeZone);
+
+			xMUser.timezone = defaultTimeZone;
+			opts.body = xMUser;
+
+			resp = dataHelper.sendRequest(opts);
+		}
+			
+		if (resp.status < 200 || resp.status > 299) {
             this.log.error('syncUser ERROR: ' + (new global.JSON().encode(resp) ));
             return null;
         }
@@ -181,12 +191,13 @@ xMattersPerson.prototype = {
             // populate externalKey only if we are creating a new person
             // used to later identify if person was created via a sync
             user.externalKey = userRec[this.userNameField].getDisplayValue();
+            user.externallyOwned = this.externallyOwned;
         }
 
         user.targetName = userRec[this.userNameField].getDisplayValue();
         user.firstName = userRec.first_name.getDisplayValue();
         user.lastName = userRec.last_name.getDisplayValue();
-        user.externallyOwned = this.externallyOwned;
+        user.timezone = userRec.time_zone.getDisplayValue();
 
         if (!user.supervisors) {
             user.supervisors = [];
@@ -222,7 +233,6 @@ xMattersPerson.prototype = {
             user.roles = [];
         }
 
-        //TODO: Should we always add the user.sync.role to everyone? [ And is that really what is happening here? ]
         var arrUtil = new global.ArrayUtil();
         user.roles = arrUtil.concat(user.roles, gs.getProperty('x_xma_xmatters.xmatters.user.sync.role').split(';'));
 
@@ -230,7 +240,7 @@ xMattersPerson.prototype = {
             user.site = this.getSite(gs.getProperty('x_xma_xmatters.xmatters.sync.site')).id;
         }
 
-        this.log.debug('Person Object ' + (new global.JSON().encode(user) ));
+        this.log.debug('Person Object ' + (new global.JSON().encode(user)) );
 
         return user;
     },
@@ -500,12 +510,25 @@ xMattersPerson.prototype = {
     /**
      * remove a user specified by userRec
      *
-     * @param userRec The sys_user record of the user to remove from xM.
+     * @param user sys_user record to sync, or the username of the user to sync.
      */
-    removeUser: function (userRec) {
+    removeUser: function (user) {
+        var userRec = user;
+
+        // If a string is passed, then we'll help out and
+        // go get the user record.
+        if (typeof user == 'string') {
+            userRec = new GlideRecord('sys_user');
+            userRec.get('user_name', user);
+        }
+
         // ensure there is a user that was created through a sync
         var username = userRec[this.userNameField].getDisplayValue();
         var xMUser = this.getPersonFromxM(username);
+/*
+xMUser = this.buildPersonObject(userRec, xMUser);
+*/
+
         this.log.debug('removeUser(): xMUser: ' + (new global.JSON().encode(xMUser)));
         if (!xMUser || !xMUser.externalKey) {
             this.log.debug('removeUser: Will not remove user, ' + username + ', that was not created by sync');
@@ -627,7 +650,7 @@ xMattersPerson.prototype = {
         <sys_created_on>2016-04-26 19:31:51</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>6188cd114f4312008472a88ca310c7dd</sys_id>
-        <sys_mod_count>26</sys_mod_count>
+        <sys_mod_count>33</sys_mod_count>
         <sys_name>xMattersPerson</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -635,6 +658,6 @@ xMattersPerson.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_6188cd114f4312008472a88ca310c7dd</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-09 00:37:56</sys_updated_on>
+        <sys_updated_on>2016-06-10 05:56:19</sys_updated_on>
     </sys_script_include>
 </record_update>

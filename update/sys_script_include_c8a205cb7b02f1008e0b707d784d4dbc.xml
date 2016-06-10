@@ -7,82 +7,95 @@
         <client_callable>false</client_callable>
         <description>This include is designed to manage the logging of messages for xMatters integration processes.</description>
         <name>xMattersLogger</name>
-        <script><![CDATA[var xMattersLogger = Class.create();
+        <script><![CDATA[/**
+ * Logger for events in the xMatters integration
+ *
+ * @type {Object}
+ */
+var xMattersLogger = Class.create();
 
 xMattersLogger.prototype = {
-  
-  initialize : function(logLevel, source ) {
-    
-    this.logLevel = "WARN";
-    this.type = 'xMattersLogger';
-    this.source = (source == null ? '' : source + ' ' );
-    
-    this.count = 0;
-    this.numZeros = 4;
-    
-    logLevel = (logLevel == null ? 'WARN' : logLevel );
-    
-    if (logLevel.toUpperCase() == "ERROR") {
-      this.logLevel = 3;
-    }
-    else if (logLevel.toUpperCase() == "INFO") {
-      this.logLevel = 1;
-    }
-    else if (logLevel.toUpperCase() == "DEBUG") {
-      this.logLevel = 0;
-    }
-    else {
-      this.logLevel = 2;  // Default is WARN
-    }
-  },
 
-  isDebug : function() { 
-    return this.logLevel <= 0; 
-  },
+    initialize : function(logLevel, source ) {
 
-  debug : function(s) {
-    if (this.isDebug()){
-      this.count++;
-      
-      // It often happens that we write multiple
-      // lines to the log in one second, which 
-      // means they are not sorted in the system
-      // logs. So, here we add a number (i.e. 002) 
-      // to each line so you can sort on the log. 
-      s = 'DEBUG: ' + this.paddy( this.count, this.numZeros ) + ' ' + s;
-      gs.info( new Date().getTime() + " " + this.source + s );
+        this.type = 'xMattersLogger';
+        this.logLevel = "WARN";
+        this.source = (source == null ? '' : source + ' ' );
+
+        logLevel = (logLevel == null ? 'WARN' : logLevel );
+
+        if (logLevel.toUpperCase() == "ERROR") {
+            this.logLevel = 3;
+
+        } else if (logLevel.toUpperCase() == "INFO") {
+            this.logLevel = 1;
+
+        } else if (logLevel.toUpperCase() == "DEBUG") {
+            this.logLevel = 0;
+
+        } else {
+            this.logLevel = 2;  // Default is WARN
+        }
+    },
+
+    isDebug : function() {
+        return this.logLevel <= 0;
+    },
+
+    getLineId: function(idMajor, idMinor) {
+        var id = idMajor ? idMajor : new Date().getTime();
+        id += (typeof idMinor !== 'undefined') ? '-' + idMinor : '';
+        
+        return id;
+    },
+
+    /**
+     * Write a debug message to the log
+     *
+     * @param message to write
+     * @param idMajor major grouping for log statement ordering (typically a timestamp)
+     * @param idMinor minor number within log grouping
+     */
+    debug : function(message, idMajor, idMinor) {
+        if (this.isDebug()){
+            gs.info( this.getLineId(idMajor, idMinor) + ": " + this.source + 'DEBUG: ' + message );
+        }
+    },
+
+    info : function(s, idMajor, idMinor) {
+        if (this.logLevel <= 1){
+            gs.info( this.getLineId(idMajor, idMinor) + ": " + this.source + s );
+        }
+    },
+
+    warn : function(s, idMajor, idMinor) {
+        if (this.logLevel <= 2){
+            gs.warn( this.getLineId(idMajor, idMinor) + ": " + this.source + s );
+        }
+    },
+
+    error : function(s, idMajor, idMinor) {
+        if (this.logLevel <= 3){
+            gs.error( this.getLineId(idMajor, idMinor) + ": " + this.source + s );
+        }
+    },
+
+    /**
+     * Returns a number current time or number of milliseconds since the given time
+     * @param since time to compare
+     * @return escaped string
+     */
+    timer: function (since) {
+        return new Date().getTime() - (since ? since : 0);
     }
-  },
-  
-  info : function(s) {
-    if (this.logLevel <= 1){
-      gs.info( new Date().getTime() + " " + this.source + s );
-    }
-  },
-  
-  warn : function(s) {
-    if (this.logLevel <= 2){
-      gs.warn( new Date().getTime() + " " + this.source + s );
-    }
-  },
-  
-  error : function(s) {
-    if (this.logLevel <= 3){
-      gs.error( new Date().getTime() + " " + this.source + s );
-    }
-  },
-  paddy : function (n, p, c) {
-    var pad_char = typeof c !== 'undefined' ? c : '0';
-    var pad = new Array(1 + p).join(pad_char);
-    return (pad + n).slice(-pad.length);
-  }
+
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-02-09 19:56:39</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>c8a205cb7b02f1008e0b707d784d4dbc</sys_id>
-        <sys_mod_count>12</sys_mod_count>
+        <sys_mod_count>17</sys_mod_count>
         <sys_name>xMattersLogger</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -90,6 +103,6 @@ xMattersLogger.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_c8a205cb7b02f1008e0b707d784d4dbc</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-04-08 00:20:33</sys_updated_on>
+        <sys_updated_on>2016-06-10 04:21:00</sys_updated_on>
     </sys_script_include>
 </record_update>

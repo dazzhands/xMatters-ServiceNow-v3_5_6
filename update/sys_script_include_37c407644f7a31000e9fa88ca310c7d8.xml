@@ -11,10 +11,10 @@
  * This script will attempt to load all users, devices, groups and teams into xMatters.
  */
 gs.include("xMattersLogger");
-gs.include("xMattersUserSync");
 gs.include("xMattersGroupSync");
 gs.include("xMattersGroupMemberSync");
-gs.include("xMattersSOAPHelper");
+gs.include("xMattersDataHelper");
+gs.include("xMattersPersonCollection");
 
 var xMattersBackgroundBatchSync = Class.create();
 
@@ -46,11 +46,10 @@ xMattersBackgroundBatchSync.prototype = {
         // We'll use a different log level than the one in settings
         this.log = new xMattersLogger(logLevel);
 
-        this.userSync = new xMattersUserSync();
+        this.personCollection = new xMattersPersonCollection();
+        
         this.groupSync = new xMattersGroupSync();
-        this.memberSync = new xMattersGroupMemberSync();
-
-        this.cleanHelper = new xMattersSOAPHelper();
+        this.dataHelper = new xMattersDataHelper();
     },
 
     /**
@@ -61,9 +60,9 @@ xMattersBackgroundBatchSync.prototype = {
         this.log.debug("Loading users into xMatters started: " + start);
 
         // Get the list of "sync'able" users
-        var userList = this.cleanHelper.getSyncableUsers();
+        var userList = this.dataHelper.getSyncableUsers();
         var numUsers = userList.length;
-        this.log.debug("User list completed: " + this.cleanHelper.timer(start.getTime()) +
+        this.log.debug("User list completed: " + this.log.timer(start.getTime()) +
             " ms, " + numUsers + " users.");
 
         var numUserProcesses, userBucketSize;
@@ -85,18 +84,19 @@ xMattersBackgroundBatchSync.prototype = {
         this.log.info("Loading these users into xMatters:" + userList.join());
 
         // Keeping an array of these workers seems like a good idea... might be useful some day.
+        //TODO: Are we going to sync users 1 worker at a time or will a single worker sync multiple users (like before)?
         var workers = [];
         for (n = 0; n < numUserProcesses; n++) {
             var slice = userList.slice(n * userBucketSize, (n + 1) * userBucketSize);
             if (slice.length > 0) {
                 this.log.debug('Slice: ' + n + ': ' + slice);
-                workers.push(this.userSync.syncUsersAsync(slice));
+                workers.push(this.personCollection.syncUsersAsync(slice)); // userSync.syncUsersAsync(slice));
             }
         }
 
         this.log.warn("xMatters batch user sync. " + workers.length + " workers started at " +
             new Date() + ": " + workers + ". Time elapsed: " +
-            this.cleanHelper.timer(start.getTime()) + " ms.");
+            this.log.timer(start.getTime()) + " ms.");
     },
 
     /**
@@ -109,9 +109,9 @@ xMattersBackgroundBatchSync.prototype = {
         this.log.debug("Loading groups into xMatters started: " + start);
 
         // Get the list of "sync'able" groups
-        var groupList = this.cleanHelper.getxMGroups();
+        var groupList = this.dataHelper.getxMGroups();
         var numGroups = groupList.length;
-        this.log.debug("Group list completed: " + this.cleanHelper.timer(start.getTime()) +
+        this.log.debug("Group list completed: " + this.log.timer(start.getTime()) +
             " ms, " + numGroups + " groups.");
 
         // Determine the total number of API calls that will be needed
@@ -150,15 +150,15 @@ xMattersBackgroundBatchSync.prototype = {
             }
         }
         this.log.warn("xMatters batch group sync. " + workers.length + " workers started: " +
-            workers + ". Time elapsed: " + this.cleanHelper.timer(start.getTime()) + " ms.");
+            workers + ". Time elapsed: " + this.log.timer(start.getTime()) + " ms.");
     }
 };]]></script>
         <sys_class_name>sys_script_include</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2015-03-11 17:49:08</sys_created_on>
-        <sys_customer_update>false</sys_customer_update>
+        <sys_customer_update>true</sys_customer_update>
         <sys_id>37c407644f7a31000e9fa88ca310c7d8</sys_id>
-        <sys_mod_count>17</sys_mod_count>
+        <sys_mod_count>21</sys_mod_count>
         <sys_name>xMattersBackgroundBatchSync</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -166,6 +166,6 @@ xMattersBackgroundBatchSync.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_37c407644f7a31000e9fa88ca310c7d8</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-07 01:19:30</sys_updated_on>
+        <sys_updated_on>2016-06-10 04:15:02</sys_updated_on>
     </sys_script_include>
 </record_update>

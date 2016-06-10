@@ -1501,45 +1501,6 @@ xMattersSOAPHelper.prototype = {
 
     },
 
-    /*
-     * Get the "syncable" users for the users batch sync
-     *
-     * Only those uses that have a role listed in xmatters.user.sync.roles.list are
-     * eligible for sync
-     */
-    getSyncableUsers: function () {
-        var arrayUtil = new global.ArrayUtil();
-
-        var syncableUsers = [];
-        var roleFilterList = gs.getProperty(this.appPrefix + '.' + "xmatters.user.sync.roles.list");
-        if (roleFilterList.trim().length > 0) {
-            var roles = roleFilterList.split(";");
-            for (var j = 0; j < roles.length; j++) {
-                roles[j] = roles[j].trim();
-            }
-
-            var grUserRoles = new GlideRecord('sys_user_has_role');
-            grUserRoles.addQuery('user.active', 'true');
-            grUserRoles.addQuery('role.name', 'IN', roles.join());
-
-            // exclude the API user from sync
-            grUserRoles.addQuery('user.user_name', '!=', gs.getProperty(this.appPrefix + '.' + 'xmatters.api.user'));
-
-            grUserRoles.orderBy('user.user_name');
-            grUserRoles.query();
-            while (grUserRoles.next()) {
-                if (!arrayUtil.contains(syncableUsers, grUserRoles.user.user_name.toString())) {
-                    syncableUsers.push(grUserRoles.user.user_name.toString());
-                }
-            }
-
-            syncableUsers = arrayUtil.unique(syncableUsers);
-        }
-
-        this.log.debug("*** " + syncableUsers.length + " users matched: " + syncableUsers.join());
-
-        return syncableUsers;
-    },
 
     /*
      * Get the "syncable" groups for the batch sync
@@ -2397,7 +2358,7 @@ xMattersSOAPHelper.prototype = {
         <sys_created_on>2015-02-09 19:57:19</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>25c205cb7b02f1008e0b707d784d4daa</sys_id>
-        <sys_mod_count>96</sys_mod_count>
+        <sys_mod_count>97</sys_mod_count>
         <sys_name>xMattersSOAPHelper</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -2405,6 +2366,6 @@ xMattersSOAPHelper.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_25c205cb7b02f1008e0b707d784d4daa</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-08 22:27:41</sys_updated_on>
+        <sys_updated_on>2016-06-10 01:16:50</sys_updated_on>
     </sys_script_include>
 </record_update>
