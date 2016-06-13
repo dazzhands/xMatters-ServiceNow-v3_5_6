@@ -23,7 +23,7 @@ gs.include('xMattersBackgroundBatchSync');&#13;
 var logger = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"), 'Batch Load Users')&#13;
 logger.info('Starting batch load of users');&#13;
 &#13;
-new xMattersBackgroundBatchSync('DEBUG').syncUsers();&#13;
+new xMattersBackgroundBatchSync().syncUsers();&#13;
 &#13;
 logger.info('Completed initiation of worker processes. Please wait until all ' +&#13;
     'users have been loaded to start the Batch Load Groups script');&#13;
@@ -39,7 +39,7 @@ logger.info('Completed initiation of worker processes. Please wait until all ' +
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
         <sys_id>b6b421d64f3271000e9fa88ca310c7a9</sys_id>
-        <sys_mod_count>7</sys_mod_count>
+        <sys_mod_count>30</sys_mod_count>
         <sys_name>Batch Load Users</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
@@ -48,7 +48,7 @@ logger.info('Completed initiation of worker processes. Please wait until all ' +
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_app_module_b6b421d64f3271000e9fa88ca310c7a9</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-10 04:28:16</sys_updated_on>
+        <sys_updated_on>2016-06-13 22:01:37</sys_updated_on>
         <timeline_page/>
         <title>Batch Load Users</title>
         <uncancelable>false</uncancelable>

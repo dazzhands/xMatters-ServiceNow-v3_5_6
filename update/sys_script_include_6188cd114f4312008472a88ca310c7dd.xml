@@ -37,7 +37,9 @@ xMattersPerson.prototype = {
 			this.dataHelper = new xMattersDataHelper();
 		}
 
+		//TODO: Make a configurable parameter
         this.userNameField = 'user_name';   // Some companies don't user user_name for the xM ID
+		
 		this.defaultTimeZone = gs.getProperty('x_xma_xmatters.xmatters.sync.time.zone');
     },
 
@@ -79,6 +81,8 @@ xMattersPerson.prototype = {
     /**
      * Insert/Update user in xMatters synchronously (in the current "ground")
      *
+	 * TODO: record failures in a friendly manner
+	 *
      * @param {*} user sys_user record to sync, or the username of the user to sync.
 	 * @param {*} previousUser previous sys_user record of user to sync, or the previous username of the user
      * @param {null|[]} args optional array of name/value pairs to add to the user body before sending to xM
@@ -327,33 +331,6 @@ xMattersPerson.prototype = {
         return new global.JSON().decode(resp.body);
     },
 	
-	/**
-	 * Create a new device object that can be synced to xMatters
-	 *
-	 * When a new device is being created, we also check the config
-	 * to determine if it should be set as externally owned.
-	 
-	 * @param {string} name of the device
-	 * @param {string} type of the device
-	 * @param {string} ownerId of the person who owns this device
-	 * @returns {{}} the new device object
-	 */
-	_createDevice: function (name, type, ownerId) {
-		var device = {
-			name: name,
-			recipientType: "DEVICE",
-			deviceType: type,
-			owner: ownerID,
-		};
-
-		if (gs.getProperty("x_xma_xmatters.xmatters.user.sync.externally.owned")) {
-			device.externalKey = [ownerId, name].join('-').replace(/ /, '-');
-			device.externallyOwned = true;
-		}
-		
-		return device;
-	},
-	
     /**
      * sync the person's email device to xMatters
      *
@@ -383,7 +360,7 @@ xMattersPerson.prototype = {
         }
 
         if (!device) {
-			device = this._createDevice(deviceName, "EMAIL", ownerID);
+			device = xmDevice.createDevice(deviceName, "EMAIL", ownerID);
         }
 
         device.emailAddress = userRec.email.getDisplayValue();
@@ -415,7 +392,7 @@ xMattersPerson.prototype = {
         }
 
 		if (!device) {
-			device = this._createDevice(deviceName, "VOICE", ownerID);
+			device = xmDevice.createDevice(deviceName, "VOICE", ownerID);
         }
 
         device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.phone.getDisplayValue());
@@ -447,7 +424,7 @@ xMattersPerson.prototype = {
         }
 
 		if (!device) {
-			device = this._createDevice(deviceName, "VOICE", ownerID);
+			device = xmDevice.createDevice(deviceName, "VOICE", ownerID);
         }
 
         device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.mobile_phone.getDisplayValue());
@@ -479,7 +456,7 @@ xMattersPerson.prototype = {
         }
 
 		if (!device) {
-			device = this._createDevice(deviceName, "TEXT_PHONE", ownerID);
+			device = xmDevice.createDevice(deviceName, "TEXT_PHONE", ownerID);
         }
 
         device.phoneNumber = xmDevice.cleanPhoneNumber(userRec.mobile_phone.getDisplayValue());
@@ -680,7 +657,7 @@ xMattersPerson.prototype = {
         <sys_created_on>2016-04-26 19:31:51</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>6188cd114f4312008472a88ca310c7dd</sys_id>
-        <sys_mod_count>51</sys_mod_count>
+        <sys_mod_count>53</sys_mod_count>
         <sys_name>xMattersPerson</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
@@ -688,6 +665,6 @@ xMattersPerson.prototype = {
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_script_include_6188cd114f4312008472a88ca310c7dd</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-13 18:00:51</sys_updated_on>
+        <sys_updated_on>2016-06-13 22:01:29</sys_updated_on>
     </sys_script_include>
 </record_update>
