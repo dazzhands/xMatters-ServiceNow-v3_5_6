@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_script_include">
+    <sys_script_include action="INSERT_OR_UPDATE">
+        <access>public</access>
+        <active>true</active>
+        <api_name>x_xma_xmatters.xMattersSystemPropertyUtils</api_name>
+        <client_callable>false</client_callable>
+        <description>A script include used to manage access to system properties and other useful derived values</description>
+        <name>xMattersSystemPropertyUtils</name>
+        <script><![CDATA[var xMattersSystemPropertyUtils = Class.create();
+xMattersSystemPropertyUtils.prototype = {
+    initialize: function() {
+		// is this safe? I saw in a tutorial that it might not be.
+		var prefix = gs.getCurrentScopeName();
+		this.constants = {
+			paths: {
+				events: '/reapi/2014-06-01/events?'
+			}
+		};
+		this.api = {
+				hostname: gs.getProperty( prefix + '.xmatters.api.hostname' ),
+				password: gs.getProperty( prefix + '.xmatters.api.password' ),
+				user: gs.getProperty( prefix + '.xmatters.api.user' )
+		};
+		this.incident = {
+				enabled: gs.getProperty( prefix + '.xmatters.incident.enabled' ) === 'true'
+		};
+    },
+	
+	getDeleteEventsEndpoint: function( hostname ) {
+		var endpoint = this.api.hostname;
+		if( typeof hostname !== 'undefined' || hostname !== null ) {
+			endpoint = hostname;
+		} else {
+			endpoint = this.getXMHostname();
+		}
+		return endpoint + this.constants.paths.events;
+	},
+	getXMHostname: function() {
+		if( typeof this.api.hostname === 'undefined' || this.api.hostname === null  ){
+			throw 'No hostname is specified';
+		}
+		return this.api.hostname;
+	},
+	getPropertiesByCategory: function( category ) {
+		var getProps = function( gr ) {
+			var propIds = [];
+			var queryParam = '';
+			while( gr.next() ) {
+				//gs.log( gr );
+				propIds.push( gr.property );
+				queryParam += gr.property + ',';
+			}
+			queryParam.substring( 0 , queryParam.length - 1 );
+			var propCallback = function( gr ) {
+				var propertyRecs = [];
+				while( gr.next() ) {
+					//gs.log( gr );
+					propertyRecs.push( { 
+						name: gr.name + '',
+						type: gr.type + '',
+						value: gr.value + '',
+						description: gr.description + ''
+					});
+				}
+				return propertyRecs;
+			};
+			
+			var target = new GlideRecord( 'sys_properties' );
+			target.addQuery( 'sys_id', 'IN', queryParam );
+			target.query();
+			return propCallback( target );
+		};
+		var target = new GlideRecord( 'sys_properties_category_m2m' );
+		target.addQuery( 'sys_name', 'ENDSWITH', category );
+		target.query();
+		return getProps( target );
+	},
+
+    type: 'xMattersSystemPropertyUtils'
+};]]></script>
+        <sys_class_name>sys_script_include</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2016-06-09 16:36:12</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>2ca54fd3db331200974456f0cf961952</sys_id>
+        <sys_mod_count>14</sys_mod_count>
+        <sys_name>xMattersSystemPropertyUtils</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy>read</sys_policy>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_script_include_2ca54fd3db331200974456f0cf961952</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-06-10 20:26:06</sys_updated_on>
+    </sys_script_include>
+</record_update>

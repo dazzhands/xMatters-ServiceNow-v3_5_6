@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<record_update table="sys_properties_category">
+    <sys_properties_category action="INSERT_OR_UPDATE">
+        <name>xMatters Change Approvals</name>
+        <sys_class_name>sys_properties_category</sys_class_name>
+        <sys_created_by>admin</sys_created_by>
+        <sys_created_on>2016-06-10 01:40:44</sys_created_on>
+        <sys_customer_update>true</sys_customer_update>
+        <sys_id>56f58123dbf31200974456f0cf9619bc</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>xMatters Change Approvals</sys_name>
+        <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
+        <sys_policy/>
+        <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
+        <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
+        <sys_update_name>sys_properties_category_56f58123dbf31200974456f0cf9619bc</sys_update_name>
+        <sys_updated_by>admin</sys_updated_by>
+        <sys_updated_on>2016-06-10 01:40:44</sys_updated_on>
+        <title><![CDATA[<p>Change Approval System Properties</p>]]></title>
+    </sys_properties_category>
+    <sys_translated_text action="delete_multiple" query="documentkey=56f58123dbf31200974456f0cf9619bc"/>
+</record_update>
