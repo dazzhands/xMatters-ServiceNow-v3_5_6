@@ -7,50 +7,40 @@
         <content_page/>
         <device_type/>
         <filter/>
-        <hint/>
+        <hint>Batch load groups and teams to xMatters</hint>
         <homepage/>
         <image/>
-        <link_type>SCRIPT</link_type>
+        <link_type>DIRECT</link_type>
         <map_page/>
-        <mobile_title>Batch Load Users</mobile_title>
+        <mobile_title>Batch Load Groups II</mobile_title>
         <mobile_view_name>Mobile</mobile_view_name>
         <name/>
-        <order>2</order>
+        <order>5</order>
         <override_menu_roles>false</override_menu_roles>
-        <query>gs.include('xMattersLogger');&#13;
-gs.include('xMattersBackgroundBatchSync');&#13;
-&#13;
-var logger = new xMattersLogger(gs.getProperty("x_xma_xmatters.xmatters.logging.level"), 'Batch Load Users')&#13;
-logger.info('Starting batch load of users');&#13;
-&#13;
-new xMattersBackgroundBatchSync().syncUsers();&#13;
-&#13;
-logger.info('Completed initiation of worker processes. Please wait until all ' +&#13;
-    'users have been loaded to start the Batch Load Groups script');&#13;
-</query>
+        <query>/x_xma_xmatters_Batch Load.do?type=groups</query>
         <report/>
         <roles/>
         <survey/>
         <survey_overwrite>true</survey_overwrite>
         <sys_class_name>sys_app_module</sys_class_name>
         <sys_created_by>admin</sys_created_by>
-        <sys_created_on>2015-03-16 21:18:46</sys_created_on>
+        <sys_created_on>2016-06-14 14:46:08</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_domain>global</sys_domain>
         <sys_domain_path>/</sys_domain_path>
-        <sys_id>b6b421d64f3271000e9fa88ca310c7a9</sys_id>
-        <sys_mod_count>30</sys_mod_count>
-        <sys_name>Batch Load Users</sys_name>
+        <sys_id>e7af1841db0022009a0255d0cf9619cd</sys_id>
+        <sys_mod_count>0</sys_mod_count>
+        <sys_name>Batch Load Groups II</sys_name>
         <sys_overrides/>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
-        <sys_update_name>sys_app_module_b6b421d64f3271000e9fa88ca310c7a9</sys_update_name>
+        <sys_update_name>sys_app_module_e7af1841db0022009a0255d0cf9619cd</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-13 22:01:37</sys_updated_on>
+        <sys_updated_on>2016-06-14 14:46:08</sys_updated_on>
         <timeline_page/>
-        <title>Batch Load Users</title>
+        <title>Batch Load Groups II</title>
         <uncancelable>false</uncancelable>
         <view_name/>
         <window_name/>
