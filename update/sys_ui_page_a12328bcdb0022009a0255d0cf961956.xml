@@ -32,7 +32,7 @@
 	}]);]]></client_script>
         <description/>
         <direct>false</direct>
-        <endpoint>x_xma_xmatters_Batch Load.do</endpoint>
+        <endpoint>x_xma_xmatters_xm_batch_load.do</endpoint>
         <html><![CDATA[<?xml version="1.0" encoding="utf-8" ?>
 <j:jelly trim="false" xmlns:j="jelly:core" xmlns:g="glide" xmlns:j2="null" xmlns:g2="null">
 	<g2:evaluate var="jvar_stamp">  
@@ -57,7 +57,7 @@
 		
 		<div class="row-fluid">
 			<p>
-				Batch Loading {{ entityType | lowercase }} can take a long time
+				Batch loading {{ entityType | lowercase }} can take a long time
 				to complete if there are many {{ entityType | lowercase }} to sync.
 			</p>
 
@@ -88,7 +88,7 @@
 				<code ng-show="ajaxComplete">
 					<ng-pluralize count="workers.length"
 								  when="{'0': 'No worker processes started.',
-										 'one': '1 worker process started',
+										 'one': '1 worker process started.',
 										 'other': '{} worker processes started.'}">
 					</ng-pluralize>
 
@@ -103,21 +103,21 @@
 	
 
 </j:jelly>]]></html>
-        <name>Batch Load</name>
+        <name>xm_batch_load</name>
         <processing_script/>
         <sys_class_name>sys_ui_page</sys_class_name>
         <sys_created_by>admin</sys_created_by>
         <sys_created_on>2016-06-13 20:40:32</sys_created_on>
         <sys_customer_update>true</sys_customer_update>
         <sys_id>a12328bcdb0022009a0255d0cf961956</sys_id>
-        <sys_mod_count>109</sys_mod_count>
-        <sys_name>Batch Load</sys_name>
+        <sys_mod_count>111</sys_mod_count>
+        <sys_name>xm_batch_load</sys_name>
         <sys_package display_value="xMatters" source="x_xma_xmatters">5950d7444f2231000e9fa88ca310c78c</sys_package>
         <sys_policy/>
         <sys_replace_on_upgrade>false</sys_replace_on_upgrade>
         <sys_scope display_value="xMatters">5950d7444f2231000e9fa88ca310c78c</sys_scope>
         <sys_update_name>sys_ui_page_a12328bcdb0022009a0255d0cf961956</sys_update_name>
         <sys_updated_by>admin</sys_updated_by>
-        <sys_updated_on>2016-06-14 15:04:25</sys_updated_on>
+        <sys_updated_on>2016-06-14 16:41:38</sys_updated_on>
     </sys_ui_page>
 </record_update>
